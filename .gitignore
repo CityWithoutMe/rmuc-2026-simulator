@@ -1,0 +1,43 @@
+# Unity 生成目录，不上传
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# IDE
+.vs/
+.idea/
+.gradle/
+.cursor/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# 系统
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# 崩溃与调试
+sysinfo.txt
+crashlytics-buildid.txt
+*.stackdump
+debug-*.log
+_fbx_dump.json

@@ -1,0 +1,4 @@
+# GitHub 单文件上限 100MB，超大资源走 Git LFS
+*.cubemap filter=lfs diff=lfs merge=lfs -text
+*.FBX filter=lfs diff=lfs merge=lfs -text
+*.fbx filter=lfs diff=lfs merge=lfs -text
