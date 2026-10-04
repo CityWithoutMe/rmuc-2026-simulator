@@ -37,6 +37,17 @@ public static class PlayerAttributeBinding
     // 有十车总控时，红英雄是 red_hero，蓝英雄是 blue_hero。没有总控、但有「属性管理器」时，红方仍是根上那一份。
     public static bool TryGetPlayerStats(out RobotAttributeManager stats)
     {
+        if (LanSession.Active)
+        {
+            foreach (LanVehicle vehicle in UnityEngine.Object.FindObjectsByType<LanVehicle>(FindObjectsSortMode.None))
+            {
+                if (!vehicle.IsLocal) continue;
+                stats = vehicle.Stats;
+                return stats != null;
+            }
+            stats = null;
+            return false;
+        }
         EnsureReady();
         stats = playerStats;
         return stats != null;
@@ -55,6 +66,11 @@ public static class PlayerAttributeBinding
     public static bool TryResolveRoster(GameObject go, out RobotAttributeManager stats)
     {
         stats = null;
+        if (LanSession.Active && go != null)
+        {
+            LanVehicle vehicle = go.GetComponentInParent<LanVehicle>();
+            if (vehicle != null) { stats = vehicle.Stats; return true; }
+        }
         EnsureReady();
         if (roster == null || go == null)
             return false;

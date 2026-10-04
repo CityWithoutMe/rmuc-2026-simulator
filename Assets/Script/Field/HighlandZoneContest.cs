@@ -72,6 +72,7 @@ public class HighlandZoneContest : MonoBehaviour
 
     void Update()
     {
+        if (!LanSession.CanSimulate) return;
         if (!ready)
             ready = TryBindZones();
         if (!ready)

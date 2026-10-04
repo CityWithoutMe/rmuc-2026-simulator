@@ -104,6 +104,15 @@ public class BaseHealth : MonoBehaviour
         CollectRoots();
     }
 
+    public static void ApplyLanState(LanSnapshot state)
+    {
+        if (!LanSession.IsClient) return;
+        RedHp = state.redBase; BlueHp = state.blueBase;
+        RedShield = state.redShield; BlueShield = state.blueShield;
+        RedLowestHp = state.redLowest; BlueLowestHp = state.blueLowest;
+        RedArmorOpen = state.redArmor; BlueArmorOpen = state.blueArmor;
+    }
+
     static void CollectRoots()
     {
         bool sawRed = false;
@@ -177,7 +186,7 @@ public class BaseHealth : MonoBehaviour
         return true;
     }
 
-    static bool TryBase(Collider hit, out RobotTeam team)
+    public static bool TryBase(Collider hit, out RobotTeam team)
     {
         team = RobotTeam.Neutral;
         if (hit == null)

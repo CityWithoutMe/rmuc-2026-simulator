@@ -82,21 +82,7 @@ public class BuffGainHud : MonoBehaviour
         CollectSources(RobotStat.CooldownBuffPercent);
         CollectSources(RobotStat.CoolingRate);
 
-        string body = "";
-        if (TerrainCrossBuff.TryGetAttempt(stats, out string crossing))
-            body = crossing;
-        if (HighlandZoneContest.TryGetChannel(stats, out string channel))
-        {
-            if (body.Length > 0)
-                body += "\n";
-            body += channel;
-        }
-        if (SideZoneBuff.TryGetChannel(stats, out string sideChannel))
-        {
-            if (body.Length > 0)
-                body += "\n";
-            body += sideChannel;
-        }
+        string body = ProgressFor(stats);
         for (int i = 0; i < sourceIds.Count; i++)
         {
             string id = sourceIds[i];
@@ -123,6 +109,21 @@ public class BuffGainHud : MonoBehaviour
 
         string total = "总增益：攻击" + Pct(attack) + " 防御" + Pct(defense) + " 冷却" + Pct(cool);
         label.text = body.Length == 0 ? total : body + "\n" + total;
+    }
+
+    // 客户端只展示主机裁定的过程信息，不运行本地占领/跨越判定。
+    public static string ProgressFor(RobotAttributeManager attr)
+    {
+        return LanSession.IsClient ? LanVehicle.ForStats(attr)?.FieldProgress ?? "" : LocalProgress(attr);
+    }
+
+    public static string LocalProgress(RobotAttributeManager attr)
+    {
+        var lines = new List<string>(3);
+        if (TerrainCrossBuff.TryGetAttempt(attr, out string crossing)) lines.Add(crossing);
+        if (HighlandZoneContest.TryGetChannel(attr, out string highland)) lines.Add(highland);
+        if (SideZoneBuff.TryGetChannel(attr, out string side)) lines.Add(side);
+        return string.Join("\n", lines);
     }
 
     float MaxBonus(RobotStat stat, bool usePercent)

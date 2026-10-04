@@ -79,6 +79,11 @@ public class WheelRoll : MonoBehaviour
             return;
 
         Vector3 velocity = body.linearVelocity;
+        if (LanSession.IsClient)
+        {
+            var vehicle = GetComponent<LanVehicle>();
+            if (vehicle != null) velocity = vehicle.NetworkVelocity;
+        }
         velocity.y = 0f;
 
         Vector3 forward = transform.forward;

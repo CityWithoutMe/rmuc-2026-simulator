@@ -4,6 +4,7 @@ using UnityEngine;
 // 同阵营、自己、场地不扣血，子弹照样销毁。敌对结算和日志在 CombatDamage。
 public class BullProjectile : MonoBehaviour
 {
+    public int LanShotId { get; set; }
     public float lifeTime = 3f;
 
     private Rigidbody rb;
@@ -114,5 +115,10 @@ public class BullProjectile : MonoBehaviour
         hitDestroyed = true;
         CombatDamage.HandleBulletHit(hit, attackerObject, attacker, Is42mmRound());
         Destroy(gameObject);
+    }
+
+    void OnDestroy()
+    {
+        if (LanSession.IsHost && LanShotId > 0) LanSession.Instance.NotifyImpact(LanShotId);
     }
 }

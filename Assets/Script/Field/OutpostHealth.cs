@@ -51,6 +51,13 @@ public class OutpostHealth : MonoBehaviour
         CollectPlates();
     }
 
+    public static void ApplyLanState(LanSnapshot state)
+    {
+        if (!LanSession.IsClient) return;
+        RedHp = state.redOutpost; BlueHp = state.blueOutpost;
+        RedEverDestroyed = state.redOutpostDestroyed; BlueEverDestroyed = state.blueOutpostDestroyed;
+    }
+
     static void CollectPlates()
     {
         bool sawRedTower = false;

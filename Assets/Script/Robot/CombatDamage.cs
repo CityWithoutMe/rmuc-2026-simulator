@@ -12,7 +12,7 @@ public static class CombatDamage
     public const string TagRed = "red";
     public const string TagBlue = "blue";
 
-    // 一步步算完的结果，供命中时打日志。防御已是 Clamp01 之后、真正乘进公式的那个数。
+    // 一步步算完的结果，供命中时打日志。防御上限为 1，负数表示易伤。
     public struct BulletDamage
     {
         public float baseDamage;
@@ -23,24 +23,22 @@ public static class CombatDamage
 
     // 最终伤害 = 基础伤害 × (1 + 攻击方攻击加成) × (1 - 防守方防御加成)
     //
-    //   基础伤害：42mm 仍用攻击方 GetCurrent(Damage)（英雄默认 100）。
-    //             17mm 按表 5-2 机器人装甲模块为 20（手册不是 10）。
-    //             42mm 的 GetCurrent 已经包含贴在 Damage 上的修饰器，这里不再乘第二次。
+    //   基础伤害：表 5-2 机器人装甲模块，42mm 为 200，17mm 为 20。
+    //             按弹种取规则原始伤害，不读取可编辑的 Damage 或其修饰器。
     //   攻击加成 = 攻击方 GetCurrent(AttackBuffPercent)。0.5 表示 +50%，乘的是 (1 + 0.5)。
-    //   防御加成 = Clamp01(防守方 GetCurrent(DefenseBuffPercent))。0.5 表示只承受一半，乘的是 (1 - 0.5)。
-    //             和 TakeDamage 一样先夹到 0~1，避免防御超过 100% 打出负数。
+    //   防御加成上限为 1，负值表示易伤。0.5 表示只承受一半，乘的是 (1 - 0.5)。
     //   攻击加成 ≤ -100% 时 (1 + 攻击加成) 按 0，不再打出负伤害。
     //
-    // AddZoneBuff 若把同一个攻击百分比同时写进 Damage 和 AttackBuffPercent，两边都会进本公式。
-    // 那是区域 Buff 的现有写法，这里不改它，也不再单独遍历 Damage 的修饰器列表。
+    // 攻击增益只从 AttackBuffPercent 读取一次。
     //
     // 例：红方英雄打蓝方英雄，两边加成都是 0
-    //   最终 = 100 × (1 + 0) × (1 - 0) = 100，蓝方血量 200 → 100
+    //   最终 = 200 × (1 + 0) × (1 - 0) = 200，蓝方血量 200 → 0
     //
     // 调用方必须 defender.TakeDamage(最终伤害, ignoreDefense: true, suppressLog: true)。
     // TakeDamage 默认还会再乘一次 (1 - 防御)，防御已经在这里乘过，不能再乘。
     // 详细公式日志由 HandleBulletHit 打，suppressLog 避免同一发再打一行扣血日志。
-    // 表 5-2：机器人装甲模块，17mm 弹丸原始伤害 20。42mm 仍走攻击方 Damage（英雄 100）。
+    // 表 5-2：机器人装甲模块的弹丸原始伤害。
+    public const float RobotArmorDamage42mm = 200f;
     public const float RobotArmorDamage17mm = 20f;
 
     public static BulletDamage ComputeBulletDamage(RobotAttributeManager attacker, RobotAttributeManager defender, bool is42mm = true)
@@ -50,7 +48,7 @@ public static class CombatDamage
         if (attacker != null)
         {
             baseDamage = is42mm
-                ? Mathf.Max(0f, attacker.GetCurrent(RobotStat.Damage))
+                ? RobotArmorDamage42mm
                 : RobotArmorDamage17mm;
             attackBuff = attacker.GetCurrent(RobotStat.AttackBuffPercent);
         }
@@ -76,6 +74,7 @@ public static class CombatDamage
     // is42mm：弹种。前哨站按表 5-2 固定扣血，不走下面的机器人公式。
     public static void HandleBulletHit(Collider hit, GameObject attackerObject, RobotAttributeManager attacker, bool is42mm = false)
     {
+        if (!LanSession.CanSimulate) return;
         if (attacker == null && attackerObject != null)
             attacker = PlayerAttributeBinding.Resolve(attackerObject);
 
@@ -92,6 +91,9 @@ public static class CombatDamage
             float dropped = HpDropped(outpostRed, outpostBlue, OutpostHealth.RedHp, OutpostHealth.BlueHp);
             MatchOutcome.AddAttackDamage(hitTeam, dropped);
             GrantStructureExperience(attacker, dropped, false);
+            if (dropped > 0f)
+                CombatFeedbackHud.Publish(attacker, null, hitTeam == RobotTeam.Red ? "蓝方前哨" : "红方前哨", dropped,
+                    (hitTeam == RobotTeam.Red ? OutpostHealth.BlueHp : OutpostHealth.RedHp) <= 0f);
             return;
         }
 
@@ -112,6 +114,13 @@ public static class CombatDamage
             // 5.5.1：护盾扣除计入对方造成的总伤害，但不算基地血量损失，经验仍只看血量。
             MatchOutcome.AddAttackDamage(hitTeam, dropped + shieldDropped);
             GrantStructureExperience(attacker, dropped, true);
+            string target = hitTeam == RobotTeam.Red ? "蓝方基地" : "红方基地";
+            if (dropped + shieldDropped > 0f)
+                CombatFeedbackHud.Publish(attacker, null, target, dropped + shieldDropped,
+                    (hitTeam == RobotTeam.Red ? BaseHealth.BlueHp : BaseHealth.RedHp) <= 0f);
+            else if (BaseHealth.TryBase(hit, out RobotTeam baseTeam) && IsEnemy(hitTeam, baseTeam)
+                && OutpostHealth.HpOf(baseTeam) > 0f)
+                CombatFeedbackHud.Publish(attacker, null, target, 0f, reason: "前哨仍存活，基地无敌");
             return;
         }
 
@@ -142,6 +151,13 @@ public static class CombatDamage
 
         if (hpBefore > 0f && !defender.IsAlive && attacker != null)
             attacker.GrantKillExperience(defender);
+
+        if (hpLost > 0f)
+            CombatFeedbackHud.Publish(attacker, defender, CombatFeedbackHud.Actor(defender), hpLost,
+                hpBefore > 0f && !defender.IsAlive);
+        else if (hpBefore > 0f)
+            CombatFeedbackHud.Publish(attacker, defender, CombatFeedbackHud.Actor(defender), 0f,
+                reason: defender.IsInvulnerable ? "目标处于无敌状态" : "伤害被防御抵消");
 
         Debug.Log(
             "[伤害] " + ActorLabel(attackerTeam, attacker) + " -> " + ActorLabel(defenderTeam, defender)
@@ -336,7 +352,7 @@ public static class CombatDamage
     }
 
     // 车和车、子弹和车都靠根上的盒子/胶囊。非凸网格互不相撞，蓝车之前一个碰撞体都没有。
-    static void EnsureBlockingBody(GameObject hero)
+    public static void EnsureBlockingBody(GameObject hero)
     {
         if (hero == null)
             return;

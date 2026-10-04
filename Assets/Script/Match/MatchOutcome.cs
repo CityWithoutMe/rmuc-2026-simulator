@@ -14,6 +14,8 @@ public class MatchOutcome : MonoBehaviour
     const float Epsilon = 0.05f;
 
     public static bool Decided { get; private set; }
+    public static RobotTeam Winner { get; private set; }
+    public static string ResultReason { get; private set; }
     public static float RedAttackDamage { get; private set; }
     public static float BlueAttackDamage { get; private set; }
 
@@ -24,6 +26,8 @@ public class MatchOutcome : MonoBehaviour
     static void ResetStatics()
     {
         Decided = false;
+        Winner = RobotTeam.Neutral;
+        ResultReason = "";
         RedAttackDamage = 0f;
         BlueAttackDamage = 0f;
     }
@@ -31,6 +35,8 @@ public class MatchOutcome : MonoBehaviour
     public static void BindForLoadedMatch()
     {
         Decided = false;
+        Winner = RobotTeam.Neutral;
+        ResultReason = "";
         RedAttackDamage = 0f;
         BlueAttackDamage = 0f;
 
@@ -59,6 +65,7 @@ public class MatchOutcome : MonoBehaviour
 
     void LateUpdate()
     {
+        if (!LanSession.CanSimulate) return;
         if (Decided || judging)
             return;
 
@@ -184,6 +191,8 @@ public class MatchOutcome : MonoBehaviour
     void Finish(RobotTeam winner, string reason)
     {
         Decided = true;
+        Winner = winner;
+        ResultReason = reason;
         string headline = winner == RobotTeam.Red ? "红方获胜"
             : winner == RobotTeam.Blue ? "蓝方获胜"
             : "平局";
@@ -236,6 +245,14 @@ public class MatchOutcome : MonoBehaviour
         rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = new Vector2(900f, 180f);
+    }
+
+    public void ApplyLanResult(LanSnapshot state)
+    {
+        if (!LanSession.IsClient) return;
+        RedAttackDamage = state.redDamage;
+        BlueAttackDamage = state.blueDamage;
+        if (state.decided && !Decided) Finish((RobotTeam)state.winner, state.result);
     }
 
     static Font LoadBuiltinFont()

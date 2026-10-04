@@ -69,7 +69,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void Awake()
     {
-        TryMoveControlToSelected();
+        if (!LanSession.Active) TryMoveControlToSelected();
 
         rb = GetComponent<Rigidbody>();
         // 防止人物走路时自己倒下
@@ -502,6 +502,11 @@ public class PlayerMovement : MonoBehaviour
     // 当前这一局要开的那一台。没选过或选了红英雄是 hero_red，选了蓝英雄是 hero_blue，选了步兵是对应编号。
     public static bool IsSelectedPlayerVehicle(GameObject go)
     {
+        if (LanSession.Active)
+        {
+            LanVehicle vehicle = go != null ? go.GetComponent<LanVehicle>() : null;
+            return vehicle != null && vehicle.IsLocal;
+        }
         if (go == null || IsUnderAttributeBoard(go))
             return false;
         if (MatchLaunchSelection.PlaysInfantry)
@@ -762,12 +767,14 @@ public class PlayerMovement : MonoBehaviour
 
     private void Start()
     {
+        if (LanSession.Active && !IsLanLocal()) return;
         if (lockCursor)
             SetCursorLocked(true);
     }
 
     private void OnDisable()
     {
+        if (LanSession.Active && !IsLanLocal()) return;
         if (skipCursorUnlock)
             return;
         // 退出 Play 时把光标还回来，避免编辑器卡住
@@ -777,6 +784,11 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
+        if (LanSession.Active)
+        {
+            UpdateLan();
+            return;
+        }
         HandleCursor();
         Look();
 
@@ -810,7 +822,61 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (LanSession.Active && !LanSession.CanSimulate) return;
         Move();
+    }
+
+    public void InitializeLanCamera(Camera camera)
+    {
+        rb = GetComponent<Rigidbody>();
+        cam = camera.transform;
+        yaw = transform.eulerAngles.y;
+        pitch = cam.localEulerAngles.x;
+        if (pitch > 180f) pitch -= 360f;
+    }
+
+    bool IsLanLocal()
+    {
+        var vehicle = GetComponent<LanVehicle>();
+        return vehicle != null && vehicle.IsLocal;
+    }
+
+    void UpdateLan()
+    {
+        LanVehicle vehicle = GetComponent<LanVehicle>();
+        if (vehicle == null) return;
+        if (vehicle.IsLocal)
+        {
+            HandleCursor();
+            if (!MatchOutcome.Decided) Look();
+            var input = new LanInput
+            {
+                x = Input.GetAxisRaw("Horizontal"), z = Input.GetAxisRaw("Vertical"),
+                yaw = Mathf.Repeat(yaw, 360f), pitch = pitch,
+                sprint = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift),
+                fire = !shopOpen && (!lockCursor || cursorLocked)
+                    && (Input.GetKey(KeyCode.Mouse0) || Input.GetKey(KeyCode.J)),
+                use42 = vehicle.Shooting != null && vehicle.Shooting.SelectedIs42mm,
+                shop = shopOpen
+            };
+            input = LanSmokeTest.OverrideInput(input, vehicle.Slot);
+            if (MatchOutcome.Decided) { input.x = input.z = 0; input.fire = input.sprint = false; }
+            LanSession.Instance.SubmitInput(input);
+        }
+        if (!LanSession.IsHost) return;
+        LanInput authoritative = LanSession.Instance.InputFor(vehicle.Slot);
+        if (!vehicle.IsLocal || LanSmokeTest.Automated)
+        {
+            yaw = authoritative.yaw;
+            pitch = authoritative.pitch;
+            transform.rotation = Quaternion.Euler(0, yaw, 0);
+            if (cam != null) cam.localRotation = Quaternion.Euler(pitch, 0, 0);
+        }
+        moveInput = transform.forward * authoritative.z + transform.right * authoritative.x;
+        moveInput.y = 0;
+        if (moveInput.sqrMagnitude > 1f) moveInput.Normalize();
+        sprintHeld = authoritative.sprint;
+        if (!LanSession.Instance.Running || MatchOutcome.Decided) { moveInput = Vector3.zero; sprintHeld = false; }
     }
 
     private void HandleCursor()

@@ -27,13 +27,13 @@ public class MatchTimer : MonoBehaviour
 
     private void Start()
     {
-        if (autoStart)
+        if (autoStart && LanSession.CanSimulate)
             isRunning = true;
     }
 
     private void Update()
     {
-        if (isRunning && !isFinished)
+        if (LanSession.CanSimulate && isRunning && !isFinished)
         {
             remainingSeconds -= Time.deltaTime;
             if (remainingSeconds <= 0f)
@@ -70,6 +70,15 @@ public class MatchTimer : MonoBehaviour
         remainingSeconds = durationSeconds;
         isFinished = false;
         isRunning = autoStart;
+        RefreshDisplay();
+    }
+
+    public void ApplyLanTime(float remaining, bool finished)
+    {
+        if (!LanSession.IsClient) return;
+        remainingSeconds = Mathf.Clamp(remaining, 0f, durationSeconds);
+        isFinished = finished;
+        isRunning = false;
         RefreshDisplay();
     }
 

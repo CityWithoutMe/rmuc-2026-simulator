@@ -86,6 +86,7 @@ public class RobotCollisionDamage : MonoBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
+        if (!LanSession.CanSimulate) return;
         if (collision == null || collision.collider == null)
             return;
         // 墙、地面、哨塔、基地、能量机关、场地道具：没有机器人刚体，或名字是建筑。

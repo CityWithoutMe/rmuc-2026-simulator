@@ -17,6 +17,22 @@ public static class MatchSceneBind
     {
         if (scene.name != VehicleSelectUI.MatchSceneName)
             return;
+        if (LanSession.Instance != null && LanSession.Instance.CancelledLoad) return;
+
+        LanWorld lanWorld = null;
+        if (LanSession.Active)
+        {
+            try
+            {
+                PlayerAttributeBinding.BindForLoadedMatch();
+                lanWorld = LanWorld.Bind();
+            }
+            catch (System.Exception e)
+            {
+                LanSession.Instance.Fail("车辆绑定失败：" + e.Message);
+                return;
+            }
+        }
 
         // 能量机关先挂上，哨塔收集 target 时才能整支跳过机关层级。
         RotationCenterSpin.BindForLoadedMatch();
@@ -25,8 +41,11 @@ public static class MatchSceneBind
         BaseHealth.BindForLoadedMatch();
         PowerRuneActivator.BindForLoadedMatch();
         PlayerAttributeBinding.BindForLoadedMatch();
-        CombatDamage.EnsureBlueHeroes();
-        CombatDamage.EnsureInfantryBodies();
+        if (!LanSession.Active)
+        {
+            CombatDamage.EnsureBlueHeroes();
+            CombatDamage.EnsureInfantryBodies();
+        }
         RobotCollisionDamage.BindForLoadedMatch();
         WheelRoll.BindForLoadedMatch();
         CenterCrosshair.BindForLoadedMatch();
@@ -36,6 +55,8 @@ public static class MatchSceneBind
         TerrainCrossBuff.BindForLoadedMatch();
         SideZoneBuff.BindForLoadedMatch();
         BuffGainHud.BindForLoadedMatch();
+        CombatFeedbackHud.BindForLoadedMatch();
         MatchOutcome.BindForLoadedMatch();
+        if (lanWorld != null) LanSession.Instance.AttachWorld(lanWorld);
     }
 }

@@ -101,7 +101,7 @@ public class RotationCenterSpin : MonoBehaviour
             return;
 
         // 角度累加，切换小符/大符转速时不会跳变。大符变速的 t 由 PowerRuneActivator 管。
-        spunAngleRad += CurrentSpeed() * Time.deltaTime * directionSign;
+        if (LanSession.CanSimulate) spunAngleRad += CurrentSpeed() * Time.deltaTime * directionSign;
         float angleDeg = Mathf.Rad2Deg * spunAngleRad;
 
         for (int i = 0; i < slots.Count; i++)
@@ -126,6 +126,8 @@ public class RotationCenterSpin : MonoBehaviour
     }
 
     // 当前瞬时角速度 rad/s，方便以后对接裁判
+    public float LanAngle { get => spunAngleRad; set { if (LanSession.IsClient) spunAngleRad = value; } }
+
     public float CurrentSpeed()
     {
         // 2026：小符，以及没在激活的大符，都是 π/3。只有大符正在激活才走正弦，参数在进入激活时重抽。

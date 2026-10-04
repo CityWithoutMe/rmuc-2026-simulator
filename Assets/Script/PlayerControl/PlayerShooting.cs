@@ -52,6 +52,12 @@ public class PlayerShooting : MonoBehaviour
     private void Start()
     {
         BindProjectileTemplate();
+        BindAimCamera();
+        if (LanSession.Active)
+        {
+            var vehicle = GetComponent<LanVehicle>();
+            if (vehicle == null || !vehicle.IsLocal) return;
+        }
         // 商店挂在这台车上。Cube 上的射击若在 Awake 里被关掉，不会进 Start。
         if (GetComponent<AmmoShop>() == null)
             shop = gameObject.AddComponent<AmmoShop>();
@@ -64,9 +70,23 @@ public class PlayerShooting : MonoBehaviour
         if (MatchOutcome.Decided)
             return;
 
+        if (LanSession.Active)
+        {
+            var vehicle = GetComponent<LanVehicle>();
+            if (vehicle == null) return;
+            if (vehicle.IsLocal && !IsShopOpen()) TrySwitchCaliber();
+            if (!LanSession.CanSimulate) return;
+            if (!vehicle.IsLocal)
+            {
+                var input = LanSession.Instance.InputFor(vehicle.Slot);
+                ResolveAttributes();
+                heroSelects42mm = attributes != null && attributes.robotType == RobotType.Hero && input.use42;
+            }
+        }
+
         // 商店开着时不切弹、不射击，避免 Tab 在商店里误切换。
         if (!IsShopOpen())
-            TrySwitchCaliber();
+            if (!LanSession.Active) TrySwitchCaliber();
 
         if (IsShopOpen())
             return;
@@ -175,6 +195,12 @@ public class PlayerShooting : MonoBehaviour
 
     private bool IsFireHeld()
     {
+        if (LanSession.Active)
+        {
+            var vehicle = GetComponent<LanVehicle>();
+            var input = vehicle != null ? LanSession.Instance.InputFor(vehicle.Slot) : null;
+            return input != null && input.fire && !input.shop;
+        }
         return Input.GetKey(fireKey) || Input.GetKey(altFireKey);
     }
 
@@ -226,9 +252,32 @@ public class PlayerShooting : MonoBehaviour
             projectile = bullet.AddComponent<BullProjectile>();
         projectile.SetAttacker(gameObject, attributes);
         projectile.Launch(dir, CurrentBulletSpeed());
+        if (LanSession.IsHost)
+        {
+            var vehicle = GetComponent<LanVehicle>();
+            if (vehicle != null) projectile.LanShotId = LanSession.Instance.NotifyShot(vehicle, use42, spawnPos, dir, CurrentBulletSpeed());
+        }
         // Launch/Awake 可能补了碰撞体，必须在其后忽略发射者，避免子弹一出膛就撞自己销毁
         IgnoreCollisionWithShooter(bullet);
         return true;
+    }
+
+    public GameObject CreateLanVisual(LanShot shot)
+    {
+        EnsureCaliberPrefabs();
+        GameObject source = shot.use42 ? prefab42mm : prefab17mm;
+        if (source == null) source = bulletPrefab;
+        if (source == null) return null;
+        GameObject visual = Instantiate(source, shot.position, Quaternion.LookRotation(shot.direction));
+        visual.name = "LanVisual_" + source.name;
+        visual.SetActive(true);
+        foreach (Renderer renderer in visual.GetComponentsInChildren<Renderer>(true)) renderer.enabled = true;
+        foreach (Collider collider in visual.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
+        foreach (BullProjectile projectile in visual.GetComponentsInChildren<BullProjectile>(true)) projectile.enabled = false;
+        foreach (Rigidbody body in visual.GetComponentsInChildren<Rigidbody>(true)) body.isKinematic = true;
+        visual.AddComponent<LanProjectileVisual>().Velocity = shot.direction * shot.speed;
+        Destroy(visual, 3f);
+        return visual;
     }
 
     // 准星瞄准：摄像机穿过屏幕正中心打射线；有碰撞朝击中点，否则朝射线远点。允许打天上/地下，不把 dir.y 清零。

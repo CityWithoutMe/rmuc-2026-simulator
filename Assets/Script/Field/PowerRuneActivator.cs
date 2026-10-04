@@ -149,6 +149,7 @@ public class PowerRuneActivator : MonoBehaviour
 
     void Update()
     {
+        if (!LanSession.CanSimulate) return;
         float elapsed = ReadElapsed();
         float dt = Time.deltaTime;
         GrantChances(elapsed);
@@ -259,6 +260,43 @@ public class PowerRuneActivator : MonoBehaviour
 
         RollLarge(side);
         side.shotLeft = HitWindow;
+    }
+
+    public static LanRuneState[] CaptureLanState()
+    {
+        if (instance == null) return null;
+        var states = new LanRuneState[2];
+        foreach (Side side in instance.sides)
+        {
+            var state = new LanRuneState
+            {
+                phase = (int)side.phase, kind = (int)side.kind, litA = side.litA, litB = side.litB,
+                hits = side.totalHits, activateLeft = side.activateLeft, shotLeft = side.shotLeft,
+                buffLeft = side.buffLeft, extraLeft = side.smallExtraLeft,
+                waitingSecond = side.waitingSecond, struck = new bool[side.arms.Count]
+            };
+            for (int i = 0; i < side.arms.Count; i++) state.struck[i] = side.arms[i].struck;
+            states[side.team == RobotTeam.Red ? 0 : 1] = state;
+        }
+        return states;
+    }
+
+    public static void ApplyLanState(LanRuneState[] states)
+    {
+        if (!LanSession.IsClient || instance == null || states == null || states.Length != 2) return;
+        foreach (Side side in instance.sides)
+        {
+            LanRuneState state = states[side.team == RobotTeam.Red ? 0 : 1];
+            if (state == null) continue;
+            side.phase = (Phase)state.phase; side.kind = (RuneKind)state.kind;
+            side.litA = state.litA; side.litB = state.litB; side.totalHits = state.hits;
+            side.activateLeft = state.activateLeft; side.shotLeft = state.shotLeft;
+            side.buffLeft = state.buffLeft; side.smallExtraLeft = state.extraLeft;
+            side.waitingSecond = state.waitingSecond;
+            if (state.struck != null)
+                for (int i = 0; i < side.arms.Count && i < state.struck.Length; i++) side.arms[i].struck = state.struck[i];
+        }
+        instance.ApplyAllLights();
     }
 
     void RegisterHit(Side side, int index)

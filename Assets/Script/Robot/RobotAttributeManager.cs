@@ -14,6 +14,7 @@ public class RobotAttributeManager : MonoBehaviour
     public const string ImmediatePowerSourceId = "_immediate_power";
 
     static readonly int StatCount = Enum.GetValues(typeof(RobotStat)).Length;
+    float[] lanValues;
 
     // —— 身份（不是修饰器目标）——
     [Header("身份")]
@@ -25,11 +26,11 @@ public class RobotAttributeManager : MonoBehaviour
     public int baseLevel = 1;
     public float baseExp = 0f;
 
-    [Header("生存（步兵默认 100HP，英雄建议 200）")]
+    [Header("生存（一级血量优先步兵 / 远程优先英雄均为 200HP）")]
     [Tooltip("开局血量，通常等于最大血量")]
-    public float baseHp = 100f;
-    [Tooltip("步兵约 100，英雄约 200，哨兵约 600，可按赛季改")]
-    public float baseMaxHp = 100f;
+    public float baseHp = 200f;
+    [Tooltip("2026 一级默认：血量优先步兵 200，远程优先英雄 200")]
+    public float baseMaxHp = 200f;
     [Tooltip("基地护盾等。普通机器人默认 0")]
     public float baseShieldHp = 0f;
     [Tooltip("已复活次数的开局值，一般是 0")]
@@ -42,8 +43,8 @@ public class RobotAttributeManager : MonoBehaviour
     public float baseMoveSpeed = 5f;
     [Tooltip("底盘转向速度 deg/s")]
     public float baseRotateSpeed = 180f;
-    [Tooltip("底盘功率上限 W。步兵约 80，英雄约 100，可按赛季改")]
-    public float baseChassisPowerLimit = 80f;
+    [Tooltip("2026 一级默认：血量优先步兵 45W，远程优先英雄 50W")]
+    public float baseChassisPowerLimit = 45f;
     [Tooltip("超级电容 / 缓冲能量，开局视为满")]
     public float baseChassisPowerBuffer = 60f;
     [Tooltip("小陀螺转速 deg/s")]
@@ -63,15 +64,15 @@ public class RobotAttributeManager : MonoBehaviour
     public int baseMaxAmmo17mm = 500;
     public int baseMaxAmmo42mm = 0;
     public float baseBarrelHeat = 0f;
-    [Tooltip("枪口热量上限。步兵常见约 240")]
-    public float baseBarrelHeatLimit = 240f;
+    [Tooltip("2026 一级默认：冷却优先步兵 40，远程优先英雄 160")]
+    public float baseBarrelHeatLimit = 40f;
     [Tooltip("冷却速度，热量/秒")]
     public float baseCoolingRate = 12f;
     [Tooltip("射速，发/秒")]
     public float baseFireRate = 10f;
     [Tooltip("弹速 m/s")]
     public float baseProjectileSpeed = 30f;
-    [Tooltip("单发基础伤害。17mm 约 10，42mm 约 100。弹丸结算读 GetCurrent(Damage)，不再把本属性上的修饰器乘第二次")]
+    [Tooltip("自定义伤害属性。规则机器人装甲弹丸伤害按弹种固定为 17mm 20、42mm 200，再计算攻防增益")]
     public float baseDamage = 10f;
     [Tooltip("攻击加成。0.5 = +50%。弹丸最终伤害 = 基础伤害 * (1 + 攻击加成) * (1 - 对方防御)")]
     public float baseAttackBuffPercent = 0f;
@@ -211,6 +212,7 @@ public class RobotAttributeManager : MonoBehaviour
     void Update()
     {
         if (!inited) return;
+        if (!LanSession.CanSimulate) { RefreshView(); return; }
 
         // 公开基础值相对上次快照有变化才写回存量。没改过的血量、热量、弹药保持原值，不用默认数覆盖。
         if (!applyingInspector)
@@ -297,18 +299,17 @@ public class RobotAttributeManager : MonoBehaviour
                 baseReviveRemaining = -1;
                 baseMoveSpeed = 4.5f;
                 baseRotateSpeed = 160f;
-                baseChassisPowerLimit = 100f;
+                baseChassisPowerLimit = 50f;
                 baseAmmo17mm = 200;
                 baseAmmo42mm = 16;
                 baseMaxAmmo17mm = 200;
                 baseMaxAmmo42mm = 16;
-                // 英雄一级血量 200、42mm 热量上限 200，与规则常见初值一致。
-                // 冷却 20/秒、射速 2 发/秒保持原值：本次打不开 2025/2026 等级表，不把未核对的赛季数写进来。
-                baseBarrelHeatLimit = 200f;
+                // V2.2.0 表 5-13：一级远程优先，热量上限 160、冷却 20/秒。
+                baseBarrelHeatLimit = 160f;
                 baseCoolingRate = 20f;
                 baseFireRate = 2f;
                 baseProjectileSpeed = 16f;
-                baseDamage = 100f;
+                baseDamage = CombatDamage.RobotArmorDamage42mm;
                 break;
 
             case RobotType.Sentry:
@@ -440,17 +441,17 @@ public class RobotAttributeManager : MonoBehaviour
 
             default: // Infantry
                 robotId = team == RobotTeam.Blue ? 103 : 3;
-                baseHp = 100f;
-                baseMaxHp = 100f;
+                baseHp = 200f;
+                baseMaxHp = 200f;
                 baseReviveRemaining = -1;
                 baseMoveSpeed = 5f;
                 baseRotateSpeed = 180f;
-                baseChassisPowerLimit = 80f;
+                baseChassisPowerLimit = 45f;
                 baseAmmo17mm = 500;
                 baseAmmo42mm = 0;
                 baseMaxAmmo17mm = 500;
                 baseMaxAmmo42mm = 0;
-                baseBarrelHeatLimit = 240f;
+                baseBarrelHeatLimit = 40f;
                 baseCoolingRate = 12f;
                 baseFireRate = InfantryBaseFireRate;
                 baseProjectileSpeed = 30f;
@@ -505,6 +506,7 @@ public class RobotAttributeManager : MonoBehaviour
     public float GetCurrent(RobotStat stat)
     {
         EnsureInit();
+        if (LanSession.IsClient && lanValues != null) return lanValues[(int)stat];
         if (IsResource(stat))
             return stored[(int)stat];
         return ComputeModified(stat);
@@ -1063,15 +1065,15 @@ public class RobotAttributeManager : MonoBehaviour
             && robotId == 3
             && baseLevel == 1
             && Mathf.Approximately(baseExp, 0f)
-            && Mathf.Approximately(baseHp, 100f)
-            && Mathf.Approximately(baseMaxHp, 100f)
+            && Mathf.Approximately(baseHp, 200f)
+            && Mathf.Approximately(baseMaxHp, 200f)
             && Mathf.Approximately(baseShieldHp, 0f)
             && baseAmmo17mm == 500
             && baseAmmo42mm == 0
             && baseMaxAmmo17mm == 500
             && baseMaxAmmo42mm == 0
             && Mathf.Approximately(baseBarrelHeat, 0f)
-            && Mathf.Approximately(baseBarrelHeatLimit, 240f)
+            && Mathf.Approximately(baseBarrelHeatLimit, 40f)
             && Mathf.Approximately(baseFireRate, 10f)
             && Mathf.Approximately(baseDamage, 10f);
     }
@@ -1291,6 +1293,7 @@ public class RobotAttributeManager : MonoBehaviour
 
     float ComputeModified(RobotStat stat)
     {
+        if (LanSession.IsClient && lanValues != null) return lanValues[(int)stat];
         float b = runtimeBase[(int)stat];
         float add = 0f;
         float pct = 0f;
@@ -1914,6 +1917,55 @@ public class RobotAttributeManager : MonoBehaviour
         if (inspectorSynced == null)
             return;
         inspectorSynced[(int)stat] = stat == RobotStat.Level ? baseLevel : baseExp;
+    }
+
+    public LanRobotState CaptureLanState()
+    {
+        EnsureInit();
+        var state = new LanRobotState
+        {
+            stats = new float[StatCount],
+            heatLocked = barrelLockedUntilZero, permanentlyLocked = barrelLockedForMatch,
+            weakUntilCard = weakUntilBuffCard, naturalInvulnerable = naturalInvulnerableActive,
+            revive = reviveSecondsRemaining, invulnerable = invulnerableSecondsRemaining,
+            weak = weakSecondsRemaining, remoteHeal = remoteHealSecondsRemaining,
+            combatAge = secondsSinceCombat, immediateRevives = immediateReviveCount
+        };
+        var modifiers = new List<LanModifier>();
+        for (int stat = 0; stat < StatCount; stat++)
+        {
+            state.stats[stat] = GetCurrent((RobotStat)stat);
+            foreach (StatModifier modifier in mods[stat])
+                modifiers.Add(new LanModifier { stat = stat, modifier = modifier, remaining = modifier.remaining });
+        }
+        state.modifiers = modifiers.ToArray();
+        return state;
+    }
+
+    public void ApplyLanState(LanRobotState state)
+    {
+        if (!LanSession.IsClient || state.stats == null || state.stats.Length != StatCount) return;
+        EnsureInit();
+        lanValues = state.stats;
+        barrelLockedUntilZero = state.heatLocked;
+        barrelLockedForMatch = state.permanentlyLocked;
+        weakUntilBuffCard = state.weakUntilCard;
+        naturalInvulnerableActive = state.naturalInvulnerable;
+        reviveSecondsRemaining = state.revive;
+        invulnerableSecondsRemaining = state.invulnerable;
+        weakSecondsRemaining = state.weak;
+        remoteHealSecondsRemaining = state.remoteHeal;
+        secondsSinceCombat = state.combatAge;
+        immediateReviveCount = state.immediateRevives;
+        foreach (var list in mods) list.Clear();
+        if (state.modifiers != null)
+            foreach (LanModifier entry in state.modifiers)
+                if (entry.stat >= 0 && entry.stat < StatCount && entry.modifier != null)
+                {
+                    entry.modifier.remaining = entry.remaining;
+                    mods[entry.stat].Add(entry.modifier);
+                }
+        RefreshView();
     }
 
     static string ActorLabel(RobotAttributeManager robot)

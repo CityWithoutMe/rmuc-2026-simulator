@@ -32,7 +32,7 @@ public class HeroAttributeHud : MonoBehaviour
     void Start()
     {
         // Start 时 PlayerMovement 已把控制从 Cube 迁到选中的英雄。
-        CombatDamage.EnsureBlueHeroes();
+        if (!LanSession.Active) CombatDamage.EnsureBlueHeroes();
         TryBind();
         Refresh();
     }

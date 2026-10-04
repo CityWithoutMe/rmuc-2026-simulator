@@ -41,6 +41,11 @@ public class AmmoShop : MonoBehaviour
 
     void Update()
     {
+        if (LanSession.Active)
+        {
+            var vehicle = GetComponent<LanVehicle>();
+            if (vehicle == null || !vehicle.IsLocal) return;
+        }
         if (Input.GetKeyDown(KeyCode.B))
             SetOpen(!open);
 
@@ -86,16 +91,19 @@ public class AmmoShop : MonoBehaviour
 
     void Buy17()
     {
+        if (LanSession.Active) { LanSession.Instance.Purchase("ammo17"); return; }
         Buy(RobotStat.Ammo17mm, PricePer17mm, BuyCount17mm, true);
     }
 
     void Buy42()
     {
+        if (LanSession.Active) { LanSession.Instance.Purchase("ammo42"); return; }
         Buy(RobotStat.Ammo42mm, PricePer42mm, BuyCount42mm, false);
     }
 
     void BuyHp()
     {
+        if (LanSession.Active) { LanSession.Instance.Purchase("heal"); return; }
         RobotAttributeManager attr = ResolveAttributes();
         if (attr == null)
         {
@@ -120,6 +128,7 @@ public class AmmoShop : MonoBehaviour
 
     void BuyRevive()
     {
+        if (LanSession.Active) { LanSession.Instance.Purchase("revive"); return; }
         RobotAttributeManager attr = ResolveAttributes();
         if (attr == null)
         {
@@ -188,6 +197,40 @@ public class AmmoShop : MonoBehaviour
         attr.SetCurrent(RobotStat.Coins, InfiniteCoinPool);
         if (!attr.TrySpendCoins(cost))
             attr.SetCurrent(RobotStat.Coins, InfiniteCoinPool);
+    }
+
+    // 联机购买只由主机执行，沿用现有无限金币和兑换规则。
+    public static string ExecuteLanPurchase(RobotAttributeManager attr, string action)
+    {
+        if (!LanSession.IsHost || attr == null) return "无效购买";
+        if (action == "heal")
+        {
+            string block = attr.RemoteHealBlockReason();
+            if (block != null) return block;
+            PayCoins(attr, RobotLevelRules.RemoteHealPrice(MatchRemainingSeconds()));
+            attr.BeginRemoteHeal();
+            return null;
+        }
+        if (action == "revive")
+        {
+            string block = attr.ImmediateReviveBlockReason();
+            if (block != null) return block;
+            PayCoins(attr, RobotLevelRules.ImmediateRevivePrice(MatchRemainingSeconds(), attr.Level));
+            return attr.BeginImmediateRevive() ? null : "立即复活失败";
+        }
+        if (action == "ammo42" && attr.robotType == RobotType.Hero)
+        {
+            int added = attr.AddAmmo42mm(BuyCount42mm);
+            PayCoins(attr, added * PricePer42mm);
+            return added > 0 ? null : "已满";
+        }
+        if (action == "ammo17" && (attr.robotType == RobotType.Hero || attr.robotType == RobotType.Infantry))
+        {
+            int added = attr.AddAmmo17mm(BuyCount17mm);
+            PayCoins(attr, added * PricePer17mm);
+            return added > 0 ? null : "已满";
+        }
+        return "该车辆不能兑换这种弹药";
     }
 
     void Refresh()

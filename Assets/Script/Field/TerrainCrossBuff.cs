@@ -81,6 +81,7 @@ public class TerrainCrossBuff : MonoBehaviour
 
     void Update()
     {
+        if (!LanSession.CanSimulate) return;
         if (!ready)
             ready = TryBind();
         if (!ready)

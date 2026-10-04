@@ -15,6 +15,8 @@
 .gradle/
 .cursor/
 *.csproj
+!Tests/LanNetworking/LanNetworking.csproj
+Tests/LanNetworking/bin/
 *.unityproj
 *.sln
 *.slnx

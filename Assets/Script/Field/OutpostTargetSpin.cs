@@ -83,6 +83,7 @@ public class OutpostTargetSpin : MonoBehaviour
 
     void Update()
     {
+        if (!LanSession.CanSimulate) return;
         if (!ready)
             return;
 
@@ -171,6 +172,30 @@ public class OutpostTargetSpin : MonoBehaviour
                 body = body,
                 side = chosen.side
             });
+        }
+    }
+
+    public static LanPose[] CaptureLanPoses()
+    {
+        var spin = UnityEngine.Object.FindAnyObjectByType<OutpostTargetSpin>();
+        if (spin == null) return null;
+        var poses = new LanPose[2];
+        foreach (SpinSlot slot in spin.slots)
+            if (slot.target != null && slot.side != Side.None)
+                poses[(int)slot.side - 1] = new LanPose { position = slot.target.position, rotation = slot.target.rotation };
+        return poses;
+    }
+
+    public static void ApplyLanPoses(LanPose[] poses)
+    {
+        if (!LanSession.IsClient || poses == null || poses.Length != 2) return;
+        var spin = UnityEngine.Object.FindAnyObjectByType<OutpostTargetSpin>();
+        if (spin == null) return;
+        foreach (SpinSlot slot in spin.slots)
+        {
+            if (slot.target == null || slot.side == Side.None) continue;
+            LanPose pose = poses[(int)slot.side - 1];
+            if (pose != null) slot.target.SetPositionAndRotation(pose.position, pose.rotation);
         }
     }
 
