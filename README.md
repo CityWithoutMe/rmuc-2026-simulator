@@ -1,9 +1,10 @@
 # RMUC 2026 模拟器（Net 分支）
 
-这是 **实现了局域网联机** 的源码分支，不是已经打好包、双击就能玩的安装包。
+这是 **实现了局域网联机** 的源码分支。
 
 - 仓库：https://github.com/CityWithoutMe/rmuc-2026-simulator
 - 联机代码在 **`Net`**。`main` 仍是更早的初始提交，没有这套联网。
+- 不装 Unity、直接玩：下载 [局域网 Windows 客户端](https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/lan-client)（解压后双击 `RMNetwork.exe`）。
 
 ```bash
 git clone -b Net https://github.com/CityWithoutMe/rmuc-2026-simulator.git
@@ -13,18 +14,36 @@ git clone -b Net https://github.com/CityWithoutMe/rmuc-2026-simulator.git
 
 ## 仓库完整吗？
 
-**源码完整，打包游戏不在 GitHub 上。**
+**源码完整。** 可执行客户端在 GitHub **Release**，不在 git 树里（避免把 100MB+ 资源塞进历史）。
 
-`Net` 里有 Unity 工程（场景、脚本、资源、联机模块、测试和联机说明）。下面这些**故意没有上传**：
+`Net` 里有 Unity 工程（场景、脚本、资源、联机模块、测试和联机说明）。下面这些**故意没有放进源码**：
 
 | 内容 | 原因 |
 |------|------|
-| `Build/` 打包结果（含 `RMNetwork.exe`） | 体积大，且每次构建都会变 |
+| `Build/` 打包结果（含 `RMNetwork.exe`） | 体积大，且每次构建都会变；已用 Release 发布 |
 | `Library/`、`Temp/`、`Logs/` | Unity 生成缓存，对方用编辑器打开后会重建 |
 
-所以：在 GitHub 网页上 **找不到可直接打开的 exe**。要玩，要么在本机已有的构建里打开，要么自己再打包一次。
+想直接玩：打开 [Releases / lan-client](https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/lan-client)，下载 `RMNetwork-Windows-Lan.zip`。
 
 ## 打包后的游戏在哪打开？
+
+### 从 GitHub 下载（推荐）
+
+1. 打开 https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/lan-client
+2. 下载 `RMNetwork-Windows-Lan.zip` 并解压
+3. 双击其中的 `RMNetwork.exe`
+
+不要只复制 exe，必须带着同目录的 `RMNetwork_Data`、`UnityPlayer.dll` 等一起用。
+
+本机多开测试（四个窗口）：在解压目录里执行：
+
+```powershell
+1..4 | ForEach-Object { Start-Process .\RMNetwork.exe }
+```
+
+一个窗口点「创建房间」，其余窗口 IP 填 `127.0.0.1`、端口 `7777` 加入。
+
+没焦点的窗口可能会暂停，多开时请把窗口并排放着。
 
 ### 本机已经构建过
 
@@ -32,22 +51,7 @@ git clone -b Net https://github.com/CityWithoutMe/rmuc-2026-simulator.git
 
 `E:\模拟器开发\Build\LanBuild\RMNetwork.exe`
 
-双击这个 exe。不要只复制 exe，必须带着同一个 `LanBuild` 文件夹里的 `RMNetwork_Data`、`UnityPlayer.dll` 等一起用。
-
-本机多开测试（四个窗口）：
-
-```powershell
-cd E:\模拟器开发\Build\LanBuild
-1..4 | ForEach-Object { Start-Process .\RMNetwork.exe }
-```
-
-一个窗口点「创建房间」，其余窗口 IP 填 `127.0.0.1`、端口 `7777` 加入。
-
-测联机前请在 Unity **Player Settings** 勾选 **Run In Background** 再构建，否则没焦点的窗口会暂停。
-
-### 别人克隆仓库之后
-
-GitHub 上没有现成 exe，需要自己构建：
+### 从源码自己构建
 
 1. 安装 **Unity 6000.3.22f1**（或同大版本的 Unity 6）
 2. 用 Unity Hub 打开克隆下来的工程，等 `Library` 导入完成
