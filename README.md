@@ -43,7 +43,7 @@ git clone -b Net https://github.com/CityWithoutMe/rmuc-2026-simulator.git
 
 一个窗口点「创建房间」，其余窗口 IP 填 `127.0.0.1`、端口 `7777` 加入。
 
-没焦点的窗口可能会暂停，多开时请把窗口并排放着。
+创建或加入联机房间后，程序会自动启用后台运行；切换窗口不会主动暂停联机。无需另行勾选 Run In Background，也无需靠窗口并排来维持连接。
 
 ### 本机已经构建过
 
@@ -53,10 +53,15 @@ git clone -b Net https://github.com/CityWithoutMe/rmuc-2026-simulator.git
 
 ### 从源码自己构建
 
-1. 安装 **Unity 6000.3.22f1**（或同大版本的 Unity 6）
+1. 安装工程指定的 **Unity 6000.3.22f1**；其他 Unity 6 版本未经本项目验证
 2. 用 Unity Hub 打开克隆下来的工程，等 `Library` 导入完成
 3. 菜单 **联机 → 构建 Windows 局域网客户端**
 4. 构建完成后打开：`项目目录/Build/LanBuild/RMNetwork.exe`
+
+重新发布前应先从当前源码构建并运行联机回归，不能直接上传之前的 `Build/`。
+批处理构建可调用 `LanBuildTools.BuildForRelease`，用 `-lanReleaseDirectory Build/自定义目录/client` 指定独立输出，避免覆盖日常构建。
+再用 PowerShell 7.2+ 执行 `Tests/LanNetworking/Package-Release.ps1`，传入 `-ClientDirectory`、`-OutputZip` 和当前完整提交号 `-SourceCommit`。
+打包器会校验运行时源码与构建的 PDB 一致，检查运行依赖，去掉调试符号/DoNotShip 目录，并附启动说明、`BUILD-INFO.json` 和文件校验清单。
 
 也可用编辑器从 **MainMenu** 场景点 Play，走主菜单的「联网游戏」或「本地跑图」。不要只打开空的 SampleScene 当联机入口。
 

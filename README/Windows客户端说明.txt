@@ -1,0 +1,21 @@
+RMUC 2026 模拟器 — Windows 局域网客户端
+
+使用方法
+1. 将整个 ZIP 解压到同一个文件夹，双击 RMNetwork.exe。
+2. 不需要安装 Unity；不要单独复制 EXE，必须保留 RMNetwork_Data、UnityPlayer.dll、MonoBleedingEdge 等文件。
+3. 一人创建房间（默认端口 7777），其他人输入主机的局域网 IPv4 加入。
+4. 1～4 人均可开局。所有已加入玩家选择不同车辆并准备后，由主机开始。
+5. 同机多开时输入 127.0.0.1。创建或加入房间后自动启用后台运行，切换窗口不会主动暂停联机。
+6. 请给 Windows 防火墙的专用网络放行；校园网/AP 客户端隔离可能阻止互联。
+
+功能与限制
+包含新版主菜单、选车、房间界面，以及主机确认的场地进度、命中、受击、击毁、保护状态和敌我识别提示。
+仅支持局域网，没有公网匹配、NAT 穿透、断线重连或主机迁移。
+当前仍为开发构建；同机自动回归不等同于跨电脑现场验收。
+同一局请使用完全相同的客户端包，不要混用旧包或单独替换 DLL。
+
+版本核对
+BUILD-INFO.json 记录源码提交、Unity 版本、协议及运行时源码校验值。
+SHA256SUMS.txt 记录包内运行文件的校验值。
+源码（Net 分支）：https://github.com/CityWithoutMe/rmuc-2026-simulator/tree/Net
+发布页面：https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/lan-client

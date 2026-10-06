@@ -28,9 +28,26 @@ public static class LanBuildTools
     [MenuItem("联机/构建 Windows 局域网客户端")]
     public static void Build()
     {
+        BuildAt(Path.Combine(Project, "Build", "LanBuild", "RMNetwork.exe"));
+    }
+
+    // 批处理发布使用独立目录，不覆盖日常构建；相对目录必须位于项目 Build 内。
+    public static void BuildForRelease()
+    {
+        string[] args = Environment.GetCommandLineArgs();
+        int index = Array.IndexOf(args, "-lanReleaseDirectory");
+        string directory = index >= 0 && index + 1 < args.Length ? args[index + 1] : "Build/LanReleaseClient";
+        string resolved = Path.GetFullPath(Path.Combine(Project, directory));
+        string allowed = Path.Combine(Project, "Build") + Path.DirectorySeparatorChar;
+        if (!resolved.StartsWith(allowed, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("发布目录必须位于项目 Build 子目录内");
+        BuildAt(Path.Combine(resolved, "RMNetwork.exe"));
+    }
+
+    static void BuildAt(string output)
+    {
         building = true;
         // Unity 退出时会清空 Temp；交付构建必须放在持久的 Build 目录。
-        string output = Path.Combine(Project, "Build", "LanBuild", "RMNetwork.exe");
         var result = new BuildResult { path = output };
         try
         {
