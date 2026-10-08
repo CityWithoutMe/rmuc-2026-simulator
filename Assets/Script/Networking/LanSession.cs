@@ -345,6 +345,19 @@ public sealed class LanSession : MonoBehaviour
 
     public void Purchase(string action) { Request(new LanMessage { kind = "purchase", action = action }); }
 
+    // 网络中断尚未触发整局终止时，裁判逻辑也能识别失联英雄。
+    public bool IsRobotOnline(RobotAttributeManager stats)
+    {
+        if (!Running || world == null) return true;
+        foreach (var member in Members)
+        {
+            if (member.slot < 0 || world.Vehicles[member.slot].Stats != stats) continue;
+            if (member.peer == LocalPeer) return true;
+            return heard.TryGetValue(member.peer, out float last) && Time.unscaledTime - last <= 3f;
+        }
+        return true;
+    }
+
     public void NotifyFeedback(LanCombatFeedback feedback)
     {
         if (!IsHost || !Running || feedback == null) return;

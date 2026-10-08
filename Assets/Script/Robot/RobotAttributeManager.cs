@@ -58,8 +58,8 @@ public class RobotAttributeManager : MonoBehaviour
 
     [Header("射击 / 武器（弹药上限可按赛季改）")]
     [Tooltip("17mm 开局弹药")]
-    public int baseAmmo17mm = 500;
-    [Tooltip("42mm 开局弹药，步兵默认 0，英雄建议 16")]
+    public int baseAmmo17mm = 0;
+    [Tooltip("42mm 开局弹药，英雄与步兵均为 0，由队伍金币购买")]
     public int baseAmmo42mm = 0;
     public int baseMaxAmmo17mm = 500;
     public int baseMaxAmmo42mm = 0;
@@ -300,8 +300,8 @@ public class RobotAttributeManager : MonoBehaviour
                 baseMoveSpeed = 4.5f;
                 baseRotateSpeed = 160f;
                 baseChassisPowerLimit = 50f;
-                baseAmmo17mm = 200;
-                baseAmmo42mm = 16;
+                baseAmmo17mm = 0;
+                baseAmmo42mm = 0;
                 baseMaxAmmo17mm = 200;
                 baseMaxAmmo42mm = 16;
                 // V2.2.0 表 5-13：一级远程优先，热量上限 160、冷却 20/秒。
@@ -447,7 +447,7 @@ public class RobotAttributeManager : MonoBehaviour
                 baseMoveSpeed = 5f;
                 baseRotateSpeed = 180f;
                 baseChassisPowerLimit = 45f;
-                baseAmmo17mm = 500;
+                baseAmmo17mm = 0;
                 baseAmmo42mm = 0;
                 baseMaxAmmo17mm = 500;
                 baseMaxAmmo42mm = 0;
@@ -941,7 +941,11 @@ public class RobotAttributeManager : MonoBehaviour
         if (deathEventFired && !IsAlive) return;
 
         SetStored(RobotStat.Hp, 0f, false);
+        SetStored(RobotStat.BarrelHeat, 0f, false);
+        SetStored(RobotStat.ChassisPowerBuffer, GetCap(RobotStat.ChassisPowerBuffer), false);
+        barrelLockedUntilZero = false; // 本局永久锁定标记保留。
         SetBase(RobotStat.IsDefeated, 1f);
+        Hero42mmShield.NotifyDeath(this);
         SetBase(RobotStat.IsIdle, 0f);
 
         if (!HasModifier(RobotStat.CanMove, DeadSourceId))
@@ -1068,7 +1072,7 @@ public class RobotAttributeManager : MonoBehaviour
             && Mathf.Approximately(baseHp, 200f)
             && Mathf.Approximately(baseMaxHp, 200f)
             && Mathf.Approximately(baseShieldHp, 0f)
-            && baseAmmo17mm == 500
+            && baseAmmo17mm == 0
             && baseAmmo42mm == 0
             && baseMaxAmmo17mm == 500
             && baseMaxAmmo42mm == 0
@@ -1300,6 +1304,7 @@ public class RobotAttributeManager : MonoBehaviour
         var list = mods[(int)stat];
         bool takeMax = stat == RobotStat.AttackBuffPercent
             || stat == RobotStat.DefenseBuffPercent
+            || stat == RobotStat.RecoveryRate
             || stat == RobotStat.CooldownBuffPercent;
         // 防御正增益仍取最大。易伤是负防御，取最负的一条，再和正增益相加。
         // 手册 5.5.3 示例：25% 防御再占对方堡垒（100% 易伤）得到 75% 易伤；再叠 15% 易伤仍是 75%。
@@ -1678,10 +1683,12 @@ public class RobotAttributeManager : MonoBehaviour
 
     void TickNaturalRevive(float dt)
     {
-        if (IsAlive || reviveSecondsRemaining <= 0f)
+        if (IsAlive || IsFoulOut || !IsPowered || MatchOutcome.Decided || reviveSecondsRemaining <= 0f)
             return;
 
-        reviveSecondsRemaining -= dt;
+        bool accelerated = FieldSupportZoneBuff.InOwnSupply(this)
+            || BaseHealth.HpOf(team) < 2000f;
+        reviveSecondsRemaining -= dt * (accelerated ? 4f : 1f);
         if (reviveSecondsRemaining > 0f)
             return;
 

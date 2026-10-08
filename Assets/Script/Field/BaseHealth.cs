@@ -11,7 +11,7 @@ using UnityEngine;
 // 表 5-2「基地装甲模块」：42mm 200；17mm 分「上方前装甲模块：5」和「其余 5 块装甲模块：20」。
 // 任意部位都按可被弹丸攻击的主装甲结算，17mm 取其余 5 块那一档 20。
 // 同一行飞镖、撞击为「-」，不实现。基地飞镖检测模块一行的飞镖伤害也不做。
-// 不做 5.5.1 的重建，不做 10mm 暴击区。
+// 实际血量损失交给 OutpostHealth 累计重建机会；不做 10mm 暴击区。
 public class BaseHealth : MonoBehaviour
 {
     public const float MaxHp = 5000f;
@@ -164,7 +164,7 @@ public class BaseHealth : MonoBehaviour
 
     // 打在基地根或其子碰撞体上时返回 true。调用方仍销毁子弹。
     // 只有对立阵营、且该方前哨站血量已为 0，才扣护盾或血量。
-    public static bool TryAbsorbBullet(Collider hit, RobotTeam attackerTeam, bool is42mm)
+    public static bool TryAbsorbBullet(Collider hit, RobotTeam attackerTeam, bool is42mm, RobotAttributeManager attacker = null)
     {
         if (!TryBase(hit, out RobotTeam baseTeam))
             return false;
@@ -173,6 +173,7 @@ public class BaseHealth : MonoBehaviour
             return true;
         if (attackerTeam == baseTeam)
             return true;
+        if (is42mm && Hero42mmShield.IsBlocked(attackerTeam)) return true;
 
         if (OutpostHealth.HpOf(baseTeam) > 0f)
         {
@@ -182,6 +183,10 @@ public class BaseHealth : MonoBehaviour
         }
 
         float damage = is42mm ? Damage42mm : Damage17mm;
+        if (attacker != null && attacker.team == attackerTeam)
+            damage *= Mathf.Max(0f, 1f + attacker.GetCurrent(RobotStat.AttackBuffPercent));
+        damage *= 1f - PowerRuneActivator.StructureDefense(baseTeam);
+        damage = Mathf.Floor(damage + .5f);
         ApplyDamage(baseTeam, damage);
         return true;
     }
@@ -224,7 +229,9 @@ public class BaseHealth : MonoBehaviour
             float remain = SpendShield(refRed: true, damage);
             if (remain <= 0f || RedHp <= 0f)
                 return;
+            float before = RedHp;
             RedHp = Mathf.Max(0f, RedHp - remain);
+            OutpostHealth.RecordBaseDamage(team, before - RedHp);
             if (RedHp < RedLowestHp)
                 RedLowestHp = RedHp;
             if (RedHp <= 0f && !redDestroyedLogged)
@@ -240,7 +247,9 @@ public class BaseHealth : MonoBehaviour
         float left = SpendShield(refRed: false, damage);
         if (left <= 0f || BlueHp <= 0f)
             return;
+        float previous = BlueHp;
         BlueHp = Mathf.Max(0f, BlueHp - left);
+        OutpostHealth.RecordBaseDamage(team, previous - BlueHp);
         if (BlueHp < BlueLowestHp)
             BlueLowestHp = BlueHp;
         if (BlueHp <= 0f && !blueDestroyedLogged)

@@ -9,6 +9,7 @@ using UnityEngine;
 // - 只转名为 rotation 的最外层根，红/蓝扇叶跟着走。
 // - noimportant 不进旋转列表。它若挂在 rotation 下面，每帧把世界位姿锁回初始值，避免跟着父节点转。
 // - 子级上的独立刚体不会跟父物体走，按同一角度改它们的位姿；noimportant 下面的刚体除外。
+[DefaultExecutionOrder(-40)]
 public class RotationCenterSpin : MonoBehaviour
 {
     public enum SpeedMode
@@ -69,6 +70,7 @@ public class RotationCenterSpin : MonoBehaviour
 
     void Start()
     {
+        if (LanSession.CanSimulate) directionSign = UnityEngine.Random.value < 0.5f ? -1f : 1f;
         List<Transform> rotations = FindAllNamed(IsRotationName);
         List<Transform> noImportants = FindAllNamed(IsNoImportantName);
         List<Transform> roots = PickSpinRoots(rotations);
@@ -101,7 +103,8 @@ public class RotationCenterSpin : MonoBehaviour
             return;
 
         // 角度累加，切换小符/大符转速时不会跳变。大符变速的 t 由 PowerRuneActivator 管。
-        if (LanSession.CanSimulate) spunAngleRad += CurrentSpeed() * Time.deltaTime * directionSign;
+        if (LanSession.CanSimulate && !MatchOutcome.Decided)
+            spunAngleRad = Mathf.Repeat(spunAngleRad + PowerRuneActivator.SpinDeltaRadians * directionSign, 2f * Mathf.PI);
         float angleDeg = Mathf.Rad2Deg * spunAngleRad;
 
         for (int i = 0; i < slots.Count; i++)
@@ -130,14 +133,8 @@ public class RotationCenterSpin : MonoBehaviour
 
     public float CurrentSpeed()
     {
-        // 2026：小符，以及没在激活的大符，都是 π/3。只有大符正在激活才走正弦，参数在进入激活时重抽。
-        if (PowerRuneActivator.LargeActivatingSpin)
-        {
-            return PowerRuneActivator.LargeA * Mathf.Sin(PowerRuneActivator.LargeOmega * PowerRuneActivator.LargeTime)
-                + PowerRuneActivator.LargeB;
-        }
-
-        return smallSpeed;
+        return (float)RuneRotationRules.Speed(PowerRuneActivator.LargeActivatingSpin,
+            PowerRuneActivator.LargeTime, PowerRuneActivator.LargeA, PowerRuneActivator.LargeOmega);
     }
 
     float IntegratedAngle(float t)

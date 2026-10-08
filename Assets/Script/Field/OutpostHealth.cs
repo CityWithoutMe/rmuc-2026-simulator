@@ -7,10 +7,10 @@ using UnityEngine;
 // 手册 V2.2.0（20260807）5.5.1 基地及前哨站机制：前哨站血量为 1500。
 // 表 5-2 攻击伤害或撞击的扣血机制（5.1.1）：前哨站中部装甲模块，
 //   42mm 弹丸 200，17mm 弹丸 20，飞镖与撞击对中部装甲为「-」。
-// 这里用表上的固定扣血，不走机器人弹丸公式（基础伤害 × 攻击加成 × 防御）。
+// 表中原始伤害乘攻击方增益与本方能量机关防御，再四舍五入。
 // 受击点是哨塔下的 target，以及它的全部子物体（含以前的 aiming）。
 // 5.5.1 的 10mm×10mm 暴击区（150% 攻击增益）不套到整块 target 上。
-// 击毁：概念定义，攻击对方前哨站装甲使其血量为 0。不做 5.5.1 的重建，也不改转速。
+// 5.5.1：累计基地掉血获取重建机会；五分钟前连续检测己方前哨点，重建为 750 HP。
 public class OutpostHealth : MonoBehaviour
 {
     public const float MaxHp = 1500f;
@@ -21,6 +21,13 @@ public class OutpostHealth : MonoBehaviour
     public static float BlueHp { get; private set; } = MaxHp;
     public static bool RedEverDestroyed { get; private set; }
     public static bool BlueEverDestroyed { get; private set; }
+    static OutpostRebuildLedger redRebuild = new OutpostRebuildLedger(), blueRebuild = new OutpostRebuildLedger();
+    static int clientRedRebuild, clientBlueRebuild;
+    readonly Dictionary<RobotAttributeManager, float> rebuildProgress = new Dictionary<RobotAttributeManager, float>();
+    RobotAttributeManager[] robots;
+    public static int RebuildChances(RobotTeam team) => LanSession.IsClient
+        ? (team == RobotTeam.Red ? clientRedRebuild : clientBlueRebuild)
+        : (team == RobotTeam.Red ? redRebuild.Available : blueRebuild.Available);
 
     struct Plate
     {
@@ -38,6 +45,7 @@ public class OutpostHealth : MonoBehaviour
         BlueHp = MaxHp;
         RedEverDestroyed = false;
         BlueEverDestroyed = false;
+        redRebuild = new OutpostRebuildLedger(); blueRebuild = new OutpostRebuildLedger();
         redDestroyedLogged = false;
         blueDestroyedLogged = false;
         plates.Clear();
@@ -49,6 +57,9 @@ public class OutpostHealth : MonoBehaviour
         }
 
         CollectPlates();
+        var instance = FindAnyObjectByType<OutpostHealth>();
+        instance.rebuildProgress.Clear();
+        instance.robots = FindObjectsByType<RobotAttributeManager>(FindObjectsSortMode.None);
     }
 
     public static void ApplyLanState(LanSnapshot state)
@@ -56,6 +67,53 @@ public class OutpostHealth : MonoBehaviour
         if (!LanSession.IsClient) return;
         RedHp = state.redOutpost; BlueHp = state.blueOutpost;
         RedEverDestroyed = state.redOutpostDestroyed; BlueEverDestroyed = state.blueOutpostDestroyed;
+        clientRedRebuild = state.redRebuildChances; clientBlueRebuild = state.blueRebuildChances;
+    }
+
+    public static void RecordBaseDamage(RobotTeam team, float damage)
+    {
+        if (!LanSession.CanSimulate || MatchOutcome.Decided) return;
+        if (team == RobotTeam.Red) redRebuild.RecordDamage(damage);
+        else if (team == RobotTeam.Blue) blueRebuild.RecordDamage(damage);
+    }
+
+    void Update()
+    {
+        if (!LanSession.CanSimulate || MatchOutcome.Decided || robots == null) return;
+        TickRebuild(Time.deltaTime);
+    }
+
+    void TickRebuild(float dt)
+    {
+        float elapsed = FindAnyObjectByType<MatchTimer>()?.ElapsedSeconds ?? 0f;
+        foreach (var attr in robots)
+        {
+            if (attr == null) continue;
+            bool type = attr.robotType == RobotType.Hero || attr.robotType == RobotType.Infantry
+                || attr.robotType == RobotType.Engineer || attr.robotType == RobotType.Sentry;
+            bool eligible = elapsed < 300 && type && attr.isActiveAndEnabled && attr.IsAlive
+                && !attr.IsWeak && !attr.IsFoulOut && attr.IsPowered && HpOf(attr.team) <= 0
+                && RebuildChances(attr.team) > 0 && FieldSupportZoneBuff.InOwnOutpost(attr);
+            if (!eligible) { rebuildProgress.Remove(attr); continue; }
+            rebuildProgress.TryGetValue(attr, out float progress);
+            progress += dt;
+            rebuildProgress[attr] = progress;
+            float required = attr.robotType == RobotType.Engineer ? 5f : 10f;
+            if (progress < required) continue;
+            var ledger = attr.team == RobotTeam.Red ? redRebuild : blueRebuild;
+            if (!ledger.Consume(elapsed, HpOf(attr.team) <= 0)) continue;
+            if (attr.team == RobotTeam.Red) { RedHp = 750; redDestroyedLogged = false; }
+            else { BlueHp = 750; blueDestroyedLogged = false; }
+            rebuildProgress.Clear();
+            Debug.Log("[前哨] " + TeamLabel(attr.team) + "重建成功，血量 750，剩余机会 " + RebuildChances(attr.team));
+        }
+    }
+
+    public static string RebuildProgress(RobotAttributeManager attr)
+    {
+        var instance = FindAnyObjectByType<OutpostHealth>();
+        if (instance == null || attr == null || !instance.rebuildProgress.TryGetValue(attr, out float progress)) return null;
+        return "前哨重建 " + Mathf.FloorToInt(progress / (attr.robotType == RobotType.Engineer ? 5f : 10f) * 100) + "%";
     }
 
     static void CollectPlates()
@@ -158,7 +216,7 @@ public class OutpostHealth : MonoBehaviour
 
     // 打在 target 本体或其任意子物体（含以前的 aiming）上时返回 true。调用方仍销毁子弹。
     // 只有对立阵营扣血：红打蓝、蓝打红。同阵营或中立不扣血。
-    public static bool TryAbsorbBullet(Collider hit, RobotTeam attackerTeam, bool is42mm)
+    public static bool TryAbsorbBullet(Collider hit, RobotTeam attackerTeam, bool is42mm, RobotAttributeManager attacker = null)
     {
         if (!TryPlate(hit, out RobotTeam outpostTeam))
             return false;
@@ -167,8 +225,13 @@ public class OutpostHealth : MonoBehaviour
             return true;
         if (attackerTeam == outpostTeam)
             return true;
+        if (is42mm && Hero42mmShield.IsBlocked(attackerTeam)) return true;
 
         float damage = is42mm ? Damage42mm : Damage17mm;
+        if (attacker != null && attacker.team == attackerTeam)
+            damage *= Mathf.Max(0f, 1f + attacker.GetCurrent(RobotStat.AttackBuffPercent));
+        damage *= 1f - PowerRuneActivator.StructureDefense(outpostTeam);
+        damage = Mathf.Floor(damage + .5f);
         ApplyDamage(outpostTeam, damage);
         return true;
     }

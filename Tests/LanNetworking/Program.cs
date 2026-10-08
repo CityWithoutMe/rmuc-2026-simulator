@@ -138,11 +138,104 @@ static class Program
         Check(Wait(server, "disconnected").peer == peer, "Invalid incoming frame disconnected");
     }
 
+    static void TestRules()
+    {
+        TestHero42mmShield();
+        var coins = new TeamCoinLedger();
+        Check(coins.Red == 0 && coins.Blue == 0, "Initial team balances are zero");
+        Check(coins.Grant(400, 500), "Host can grant different amounts");
+        Check(coins.Spend(false, 15) && coins.Spend(false, 10), "Teammates spend shared balance");
+        Check(coins.Red == 375 && coins.Blue == 500, "Spending does not affect opposing team");
+        Check(!coins.Spend(false, 376) && coins.Red == 375, "Overdraft rejected atomically");
+        Check(!coins.Spend(false, -10), "Negative payment rejected");
+        Check(!coins.Grant(1, -1) && coins.Red == 375 && coins.Blue == 500, "Invalid grant affects neither team");
+        Check(!coins.Grant(int.MaxValue, 0) && coins.Red == 375, "Overflow grant rejected");
+        Check(coins.Spend(true, 500) && !coins.Spend(true, 1), "Exact balance spend then empty balance");
+        Check(coins.Grant(0, 0), "Zero grant allowed");
+        Check(Math.Abs(RuneRotationRules.Delta(false, 0, 3, .8, 1.9) - Math.PI) < 1e-8, "Small/idle rune constant pi/3 speed");
+        double angle = RuneRotationRules.Delta(true, 0, 20, .9, 1.95);
+        double partitioned = 0;
+        for (int i = 0; i < 1200; i++) partitioned += RuneRotationRules.Delta(true, i / 60.0, 1 / 60.0, .9, 1.95);
+        Check(Math.Abs(angle - partitioned) < 1e-8, "Large rune angle independent of frame rate");
+        Check(Math.Abs(RuneRotationRules.Speed(true, 0, .9, 1.95) - 1.19) < 1e-8, "Large rune starts at b=2.09-a");
+        Check(Math.Abs(RuneRotationRules.Speed(true, Math.PI / (2 * 1.95), .9, 1.95) - 2.09) < 1e-8, "Large rune maximum speed is 2.09");
+        Check(Math.Abs(RuneRotationRules.Speed(true, 3 * Math.PI / (2 * 2), 1.045, 2)) < 1e-8, "Large rune minimum never reverses");
+        Check(RuneRotationRules.Delta(true, 10, 0, .9, 1.95) == 0, "Paused frame does not rotate");
+        Check(Math.Abs(OutpostRules.AngleAt(5) - 2 * Math.PI) < 1e-8, "Outpost five second acceleration");
+        Check(Math.Abs(OutpostRules.AngleAt(6) - OutpostRules.AngleAt(5) - .8 * Math.PI) < 1e-8, "Outpost cruise speed");
+        Check(!OutpostRules.Stop(179.9, false, false) && OutpostRules.Stop(180, false, false), "Outpost stops at three minutes");
+        Check(OutpostRules.Stop(1, true, false) && OutpostRules.Stop(1, false, true), "Outpost stops after destruction or enemy armor opens");
+        var rebuild = new OutpostRebuildLedger();
+        rebuild.RecordDamage(999); Check(rebuild.Available == 0, "Sub-threshold base loss has no chance");
+        rebuild.RecordDamage(1001); Check(rebuild.Available == 2, "Base loss accumulates opportunities");
+        Check(!rebuild.Consume(299, false) && !rebuild.Consume(300, true) && rebuild.Available == 2, "No rebuild alive or past deadline");
+        Check(rebuild.Consume(299, true) && rebuild.Available == 1, "One reconstruction spends one opportunity");
+        Check(AmmoExchangeRules.Count(false, false) == 10 && AmmoExchangeRules.Count(true, false) == 1, "Local ammo exchange units");
+        Check(AmmoExchangeRules.Count(false, true) == 100 && AmmoExchangeRules.Count(true, true) == 10, "Remote ammo exchange units");
+        Check(AmmoExchangeRules.Price(true, false) == 10 && AmmoExchangeRules.Price(false, true) == 150, "Ammo exchange prices");
+        Check(AmmoExchangeRules.Limit(false) == 1000 && AmmoExchangeRules.Limit(true) == 100 && AmmoExchangeRules.Delay == 6, "Ammo team caps and remote delay");
+
+    }
+
+    static void TestHero42mmShield()
+    {
+        var shield = new Hero42mmShieldRules();
+        shield.Observe(0, true, true, 0);
+        Check(!shield.Blocked, "Initial zero allowance does not imply overfiring");
+        shield.Fired(1, true, true, 1);
+        shield.Observe(1, true, true, 0);
+        Check(!shield.Blocked, "Last legal shot remains valid");
+        shield.Observe(2, false, true, 0);
+        shield.Observe(4.999, false, true, 0);
+        Check(!shield.Blocked, "Death grace lasts full three seconds");
+        shield.Observe(5, false, true, 0);
+        Check(shield.Blocked, "Death shields enemy armor after three seconds");
+        shield.Observe(6, true, true, 0);
+        Check(shield.Blocked, "Reviving without ammunition cannot lift shield");
+        shield.Observe(7, true, true, 1);
+        Check(!shield.Blocked, "Living hero with allowance lifts shield");
+        shield.Observe(8, false, true, 5);
+        shield.Fired(8.1, false, true, 5);
+        shield.Fired(8.2, false, true, 4);
+        Check(!shield.Blocked, "First two posthumous rounds are within grace");
+        shield.Fired(8.3, false, true, 3);
+        Check(shield.Blocked, "Third posthumous round immediately activates shield");
+        shield.Observe(9, true, true, 5);
+        shield.Observe(10, false, true, 5);
+        shield.Fired(10.1, false, true, 5);
+        Check(!shield.Blocked, "Posthumous count resets on next death");
+        shield.Observe(11, true, true, 5);
+        shield.Fired(12, true, true, 0);
+        Check(shield.Blocked, "Firing with zero allowance immediately shields armor");
+        shield.Observe(13, true, true, 0);
+        Check(shield.Blocked, "Overfire remains blocked until ammunition exists");
+        shield.Observe(14, true, true, 3);
+        shield.Observe(15, true, false, 3);
+        shield.Observe(17.999, true, false, 3);
+        Check(!shield.Blocked, "Offline grace also lasts three seconds");
+        shield.Observe(18, true, false, 3);
+        Check(shield.Blocked, "Offline hero triggers shield even with allowance");
+        shield.Observe(19, true, false, 10);
+        Check(shield.Blocked, "Buying ammunition cannot clear offline shield");
+        shield.Observe(20, true, true, 10);
+        Check(!shield.Blocked, "Reconnection with live hero and ammunition clears shield");
+        shield.Observe(21, false, true, 10);
+        shield.Observe(22, true, true, 0);
+        shield.Observe(30, true, true, 0);
+        Check(shield.Blocked, "Revival without ammunition cannot cancel pending death trigger");
+        shield.Observe(31, true, true, 1);
+        Check(!shield.Blocked, "Ammunition also clears a delayed trigger after early revival");
+        shield.Observe(32, false, true, 1);
+        shield.Observe(33, true, true, 1);
+        shield.Observe(40, true, true, 0);
+        Check(!shield.Blocked, "Healthy revival during grace cancels delayed trigger");
+    }
+
     static int Main()
     {
         try
         {
-            TestRoom(); TestTransport(); TestMalformedFrame();
+            TestRules(); TestRoom(); TestTransport(); TestMalformedFrame();
             Console.WriteLine("PASS: " + assertions + " assertions; 4-player room, real TCP loopback, UTF-8/framing, ownership, scene barrier, disconnect.");
             return 0;
         }

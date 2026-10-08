@@ -4,7 +4,7 @@ using UnityEngine;
 [Serializable]
 public class LanMessage
 {
-    public const int Protocol = 3;
+    public const int Protocol = 6;
     public string kind;
     public int version = Protocol;
     public int peer;
@@ -42,6 +42,8 @@ public class LanMessage
     public bool heatLocked, permanentlyLocked, weakUntilCard, naturalInvulnerable;
     public float revive, invulnerable, weak, remoteHeal, combatAge;
     public int immediateRevives;
+    public int pendingAmmo17, pendingAmmo42;
+    public float ammoDelivery;
     public string fieldProgress;
 }
 [Serializable] public class LanCombatFeedback
@@ -68,6 +70,9 @@ public class LanMessage
 }
 [Serializable] public class LanSnapshot
 {
+    public int redCoins, blueCoins;
+    public bool red42mmBlocked, blue42mmBlocked;
+    public int redRebuildChances, blueRebuildChances;
     public int sequence;
     public float remaining;
     public bool timeFinished, decided;

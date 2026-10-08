@@ -43,3 +43,7 @@ crashlytics-buildid.txt
 *.stackdump
 debug-*.log
 _fbx_dump.json
+
+# Unity 性能测试在构建时生成
+Assets/Resources/PerformanceTestRunInfo.json*
+Assets/Resources/PerformanceTestRunSettings.json*

@@ -4,7 +4,7 @@ using System.Text;
 using UnityEngine;
 
 // 前哨站旋转装甲：红、蓝各自的 target 绕所属哨塔的本地 Y 轴匀速转。
-// 规则手册常用转速 0.4 rad/s。不要套用能量机关的正弦变速。
+// 5 秒加速到 0.8π rad/s；双方同向随机，停止后回初始位置且当局不再旋转。
 // 运行时按名字查找并挂组件，不改场景，也不改场地模型。
 //
 // 常见层级都认（同一座哨塔同一侧只留一个 target）：
@@ -14,7 +14,6 @@ using UnityEngine;
 // 能量机关（挂了 RotationCenterSpin 的层级）整支跳过。
 public class OutpostTargetSpin : MonoBehaviour
 {
-    const float SpeedRadPerSec = 0.4f;
     const int MaxChildNames = 12;
 
     enum Side
@@ -30,6 +29,10 @@ public class OutpostTargetSpin : MonoBehaviour
         public Transform tower;
         public Rigidbody body;
         public Side side;
+        public Vector3 startLocalPosition;
+        public Quaternion startLocalRotation;
+        public float angle;
+        public bool stopped;
     }
 
     class Candidate
@@ -43,6 +46,8 @@ public class OutpostTargetSpin : MonoBehaviour
     readonly List<SpinSlot> slots = new List<SpinSlot>();
     bool ready;
     static bool warned;
+    int directionSign;
+    float previousElapsed;
 
     public static void BindForLoadedMatch()
     {
@@ -63,6 +68,8 @@ public class OutpostTargetSpin : MonoBehaviour
 
     void Start()
     {
+        directionSign = UnityEngine.Random.value < 0.5f ? -1 : 1;
+        previousElapsed = 0f;
         CollectSlots();
         if (slots.Count == 0)
         {
@@ -76,37 +83,37 @@ public class OutpostTargetSpin : MonoBehaviour
             SpinSlot slot = slots[i];
             Debug.Log(
                 "OutpostTargetSpin：" + SideLabel(slot.side) + " " + PathOf(slot.target)
-                + " 绕 " + PathOf(slot.tower) + " 的 Y 轴 0.4 rad/s",
+                + " 绕 " + PathOf(slot.tower) + " 的 Y 轴，5 秒加速至 0.8π rad/s",
                 slot.target);
         }
     }
 
     void Update()
     {
-        if (!LanSession.CanSimulate) return;
-        if (!ready)
-            return;
-
-        float deg = SpeedRadPerSec * Mathf.Rad2Deg * Time.deltaTime;
-        for (int i = 0; i < slots.Count; i++)
+        if (!LanSession.CanSimulate || MatchOutcome.Decided || !ready) return;
+        var timer = FindAnyObjectByType<MatchTimer>();
+        if (timer == null) return;
+        float elapsed = timer.ElapsedSeconds;
+        float delta = Mathf.Max(0, elapsed - previousElapsed);
+        float turn = (float)(OutpostRules.AngleAt(elapsed) - OutpostRules.AngleAt(previousElapsed));
+        previousElapsed = elapsed;
+        foreach (SpinSlot slot in slots)
         {
-            SpinSlot slot = slots[i];
-            if (slot.target == null || slot.tower == null)
-                continue;
-
-            Vector3 pivot = slot.tower.position;
-            Vector3 axis = slot.tower.up;
-            if (slot.body == null)
+            if (slot.target == null || slot.tower == null) continue;
+            RobotTeam team = slot.side == Side.Red ? RobotTeam.Red : RobotTeam.Blue;
+            RobotTeam enemy = team == RobotTeam.Red ? RobotTeam.Blue : RobotTeam.Red;
+            slot.stopped |= OutpostRules.Stop(elapsed, OutpostHealth.EverDestroyed(team), BaseHealth.ArmorOpen(enemy));
+            if (!slot.stopped) slot.angle = Mathf.Repeat(slot.angle + turn, 2 * Mathf.PI);
+            else if (slot.angle > 0)
             {
-                slot.target.RotateAround(pivot, axis, deg);
-                continue;
+                float step = (float)OutpostRules.Speed * delta;
+                slot.angle = 2 * Mathf.PI - slot.angle <= step ? 0 : slot.angle + step;
             }
-
-            Quaternion spin = Quaternion.AngleAxis(deg, axis);
-            Vector3 pos = pivot + spin * (slot.target.position - pivot);
-            Quaternion rot = spin * slot.target.rotation;
-            slot.body.MovePosition(pos);
-            slot.body.MoveRotation(rot);
+            Quaternion spin = Quaternion.AngleAxis(slot.angle * Mathf.Rad2Deg * directionSign, Vector3.up);
+            Vector3 pos = slot.tower.TransformPoint(spin * slot.startLocalPosition);
+            Quaternion rot = slot.tower.rotation * spin * slot.startLocalRotation;
+            if (slot.body != null) { slot.body.position = pos; slot.body.rotation = rot; }
+            slot.target.SetPositionAndRotation(pos, rot);
         }
     }
 
@@ -170,7 +177,9 @@ public class OutpostTargetSpin : MonoBehaviour
                 target = chosen.target,
                 tower = chosen.tower,
                 body = body,
-                side = chosen.side
+                side = chosen.side,
+                startLocalPosition = chosen.tower.InverseTransformPoint(chosen.target.position),
+                startLocalRotation = Quaternion.Inverse(chosen.tower.rotation) * chosen.target.rotation
             });
         }
     }

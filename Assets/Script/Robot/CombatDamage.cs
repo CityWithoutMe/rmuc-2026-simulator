@@ -71,7 +71,7 @@ public static class CombatDamage
     }
 
     // 子弹碰到碰撞体时调用一次。同阵营、打到自己、打到场地：不扣血、不打日志。敌对才结算并 Debug.Log。
-    // is42mm：弹种。前哨站按表 5-2 固定扣血，不走下面的机器人公式。
+    // is42mm：弹种。建筑由自己的结算入口应用攻击和防御增益。
     public static void HandleBulletHit(Collider hit, GameObject attackerObject, RobotAttributeManager attacker, bool is42mm = false)
     {
         if (!LanSession.CanSimulate) return;
@@ -86,7 +86,7 @@ public static class CombatDamage
         // 打在哨塔 target 或其任意子物体上：只有对立阵营扣血。同阵营不扣，调用方仍销毁子弹。
         float outpostRed = OutpostHealth.RedHp;
         float outpostBlue = OutpostHealth.BlueHp;
-        if (OutpostHealth.TryAbsorbBullet(hit, hitTeam, is42mm))
+        if (OutpostHealth.TryAbsorbBullet(hit, hitTeam, is42mm, attacker))
         {
             float dropped = HpDropped(outpostRed, outpostBlue, OutpostHealth.RedHp, OutpostHealth.BlueHp);
             MatchOutcome.AddAttackDamage(hitTeam, dropped);
@@ -103,7 +103,7 @@ public static class CombatDamage
         float baseBlue = BaseHealth.BlueHp;
         float shieldRed = BaseHealth.ShieldOf(RobotTeam.Red);
         float shieldBlue = BaseHealth.ShieldOf(RobotTeam.Blue);
-        if (BaseHealth.TryAbsorbBullet(hit, hitTeam, is42mm))
+        if (BaseHealth.TryAbsorbBullet(hit, hitTeam, is42mm, attacker))
         {
             float dropped = HpDropped(baseRed, baseBlue, BaseHealth.RedHp, BaseHealth.BlueHp);
             float shieldDropped = HpDropped(
@@ -133,6 +133,13 @@ public static class CombatDamage
         RobotTeam attackerTeam = ResolveTeam(attackerObject, attacker, attacker != null ? attacker.team : RobotTeam.Neutral);
         if (!IsEnemy(attackerTeam, defenderTeam))
             return;
+
+        if (is42mm && Hero42mmShield.IsBlocked(attackerTeam))
+        {
+            CombatFeedbackHud.Publish(attacker, defender, CombatFeedbackHud.Actor(defender), 0f,
+                reason: "英雄 42mm 伤害已屏蔽");
+            return;
+        }
 
         BulletDamage damage = ComputeBulletDamage(attacker, defender, is42mm);
         float hpBefore = defender.Hp;

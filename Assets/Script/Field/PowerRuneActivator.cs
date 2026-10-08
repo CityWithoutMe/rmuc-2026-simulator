@@ -7,6 +7,7 @@ using UnityEngine;
 // 大符：3 分、4 分 15 秒、5 分 30 秒各 1 次机会。同时亮 2 臂。命中一律记 6 环，
 // 平均环数 6 落在 (3,7]：攻击 150%、防御 25%、热量冷却 2 倍。持续时间看激活次数（5 臂 30 秒到 10 臂 60 秒）。
 // 没有裁判端按钮：有剩余机会且未激活时自动进入正在激活。不改场景。
+[DefaultExecutionOrder(-50)]
 public class PowerRuneActivator : MonoBehaviour
 {
     const float SmallPhaseEnd = 180f;
@@ -17,6 +18,7 @@ public class PowerRuneActivator : MonoBehaviour
     const float SmallBuffSeconds = 45f;
     // 5.5.2：一次小符增益期间，本方通过「额外 100%」合计最多 1200，全队共享。
     public const float SmallExtraExpCap = 1200f;
+    public const float LargeActivationExperience = 750f;
     const float Ring = 6f;
 
     static readonly float[] SmallGrantAt = { 0f, 90f };
@@ -106,11 +108,19 @@ public class PowerRuneActivator : MonoBehaviour
         return null;
     }
 
+    // 建筑直接读取队伍剩余增益时间；无需在建筑上挂机器人属性组件。
+    public static float StructureDefense(RobotTeam team)
+    {
+        Side side = FindSide(team);
+        return side != null && side.phase == Phase.Buffed && side.buffLeft > 0f ? 0.25f : 0f;
+    }
+
     public static bool LargeActivatingSpin { get; private set; }
     public static float LargeA { get; private set; } = 0.785f;
     public static float LargeOmega { get; private set; } = 1.884f;
     public static float LargeB { get; private set; } = 1.305f;
     public static float LargeTime { get; private set; }
+    public static float SpinDeltaRadians { get; private set; }
 
     static PowerRuneActivator instance;
 
@@ -119,6 +129,7 @@ public class PowerRuneActivator : MonoBehaviour
     readonly bool[] largeGranted = new bool[LargeGrantAt.Length];
     bool warnedNoTimer;
     bool spinWasOn;
+    bool resetSpinParameters;
 
     public static void BindForLoadedMatch()
     {
@@ -132,10 +143,13 @@ public class PowerRuneActivator : MonoBehaviour
     void OnEnable()
     {
         instance = this;
+        LargeTime = SpinDeltaRadians = 0f;
+        LargeActivatingSpin = false;
     }
 
     void OnDisable()
     {
+        foreach (Side side in sides) ClearRuneBuffs(side);
         if (instance == this)
             instance = null;
         LargeActivatingSpin = false;
@@ -149,7 +163,7 @@ public class PowerRuneActivator : MonoBehaviour
 
     void Update()
     {
-        if (!LanSession.CanSimulate) return;
+        if (!LanSession.CanSimulate || MatchOutcome.Decided) { SpinDeltaRadians = 0f; return; }
         float elapsed = ReadElapsed();
         float dt = Time.deltaTime;
         GrantChances(elapsed);
@@ -323,6 +337,11 @@ public class PowerRuneActivator : MonoBehaviour
                 ClearRuneBuffs(side);
                 Debug.Log("[能量机关] " + side.label + " 增益结束");
             }
+            else
+            {
+                // 战亡立即失去增益；增益期内复活者获得剩余时长，不重复发经验。
+                ApplyRuneBuffs(side);
+            }
 
             return;
         }
@@ -374,6 +393,7 @@ public class PowerRuneActivator : MonoBehaviour
 
     void Begin(Side side, RuneKind kind)
     {
+        if (kind == RuneKind.Large) resetSpinParameters = true;
         side.phase = Phase.Activating;
         side.kind = kind;
         side.activateLeft = ActivateWindow;
@@ -412,6 +432,7 @@ public class PowerRuneActivator : MonoBehaviour
         side.buffLeft = seconds;
         ClearLit(side);
         ApplyLargeBuff(side, seconds);
+        GrantLargeActivationExperience(side.team);
         Debug.Log("[能量机关] " + side.label
             + " 大能量机关激活成功，六环平均 6，攻击 150% 防御 25% 冷却 2 倍，灯臂 "
             + Mathf.Clamp(side.totalHits, 5, 10)
@@ -430,25 +451,50 @@ public class PowerRuneActivator : MonoBehaviour
 
     static void ApplySmallBuff(Side side)
     {
-        string id = BuffId(side, RuneKind.Small);
         ClearRuneBuffs(side);
-        ForEachAlive(side.team, attr =>
-        {
-            attr.AddModifier(RobotStat.DefenseBuffPercent, StatModifier.Additive(id, SmallDefense, SmallBuffSeconds));
-        });
+        ApplyRuneBuffs(side);
     }
 
     static void ApplyLargeBuff(Side side, float seconds)
     {
-        string id = BuffId(side, RuneKind.Large);
         ClearRuneBuffs(side);
-        ForEachAlive(side.team, attr =>
+        ApplyRuneBuffs(side);
+    }
+
+    static void ApplyRuneBuffs(Side side)
+    {
+        string id = BuffId(side, side.kind);
+        ForEachTeam(side.team, attr =>
         {
-            // 150% 攻击 = 基础 × 1.5，只加攻击加成，不再乘 Damage。
-            attr.AddModifier(RobotStat.AttackBuffPercent, StatModifier.Additive(id, 0.5f, seconds));
-            attr.AddModifier(RobotStat.DefenseBuffPercent, StatModifier.Additive(id, 0.25f, seconds));
-            attr.AddModifier(RobotStat.CoolingRate, StatModifier.PercentBonus(id, 1f, seconds));
+            if (!attr.IsAlive)
+            {
+                attr.RemoveModifiersFromSource(id, true);
+                return;
+            }
+            AddRuneModifier(attr, RobotStat.DefenseBuffPercent, StatModifier.Additive(id, SmallDefense, side.buffLeft));
+            if (side.kind != RuneKind.Large) return;
+            // 仍沿用现有六环结算：攻击 150%、冷却两倍。
+            AddRuneModifier(attr, RobotStat.AttackBuffPercent, StatModifier.Additive(id, 0.5f, side.buffLeft));
+            AddRuneModifier(attr, RobotStat.CoolingRate, StatModifier.PercentBonus(id, 1f, side.buffLeft));
         });
+    }
+
+    static void AddRuneModifier(RobotAttributeManager attr, RobotStat stat, StatModifier modifier)
+    {
+        if (!attr.HasModifier(stat, modifier.sourceId)) attr.AddModifier(stat, modifier);
+    }
+
+    static void GrantLargeActivationExperience(RobotTeam team)
+    {
+        var eligible = new List<RobotAttributeManager>();
+        ForEachAlive(team, attr =>
+        {
+            if (RobotLevelRules.CanGainExperience(attr.robotType)) eligible.Add(attr);
+        });
+        if (eligible.Count == 0) return;
+        float share = LargeActivationExperience / eligible.Count;
+        foreach (var attr in eligible) attr.GrantFlatExperience(share, "大能量机关激活奖励");
+        Debug.Log("[能量机关] " + team + " 大符经验奖励 750，存活人数 " + eligible.Count + "，每台 " + share);
     }
 
     static void ClearRuneBuffs(Side side)
@@ -630,7 +676,7 @@ public class PowerRuneActivator : MonoBehaviour
             }
         }
 
-        if (want && !spinWasOn)
+        if (want && (!spinWasOn || resetSpinParameters))
         {
             LargeA = UnityEngine.Random.Range(0.780f, 1.045f);
             LargeOmega = UnityEngine.Random.Range(1.884f, 2.000f);
@@ -643,7 +689,9 @@ public class PowerRuneActivator : MonoBehaviour
         }
 
         spinWasOn = want;
+        resetSpinParameters = false;
         LargeActivatingSpin = want;
+        SpinDeltaRadians = (float)RuneRotationRules.Delta(want, LargeTime, dt, LargeA, LargeOmega);
         if (want)
             LargeTime += dt;
     }

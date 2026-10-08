@@ -119,6 +119,10 @@ public sealed class LanWorld : MonoBehaviour
         var timer = FindAnyObjectByType<MatchTimer>();
         var state = new LanSnapshot
         {
+            redCoins = MatchTeamEconomy.RedCoins, blueCoins = MatchTeamEconomy.BlueCoins,
+            red42mmBlocked = Hero42mmShield.IsBlocked(RobotTeam.Red), blue42mmBlocked = Hero42mmShield.IsBlocked(RobotTeam.Blue),
+            redRebuildChances = OutpostHealth.RebuildChances(RobotTeam.Red),
+            blueRebuildChances = OutpostHealth.RebuildChances(RobotTeam.Blue),
             sequence = sequence,
             remaining = timer != null ? timer.RemainingSeconds : 420f,
             timeFinished = timer != null && timer.IsFinished,
@@ -141,6 +145,9 @@ public sealed class LanWorld : MonoBehaviour
         {
             LanVehicle vehicle = Vehicles[slot];
             LanRobotState robot = vehicle.Stats.CaptureLanState();
+            robot.pendingAmmo17 = AmmoExchange.Pending(vehicle.Stats, false);
+            robot.pendingAmmo42 = AmmoExchange.Pending(vehicle.Stats, true);
+            robot.ammoDelivery = AmmoExchange.WaitingSeconds(vehicle.Stats);
             robot.slot = slot;
             robot.position = vehicle.transform.position;
             robot.rotation = vehicle.transform.rotation;
@@ -158,10 +165,13 @@ public sealed class LanWorld : MonoBehaviour
         {
             if (robot == null || robot.slot < 0 || robot.slot >= 4) continue;
             Vehicles[robot.slot].Stats.ApplyLanState(robot);
+            AmmoExchange.ApplyClientPending(Vehicles[robot.slot].Stats, robot);
             Vehicles[robot.slot].ApplyPose(robot);
             Vehicles[robot.slot].FieldProgress = robot.fieldProgress ?? "";
         }
         BaseHealth.ApplyLanState(state);
+        Hero42mmShield.ApplyLanState(state.red42mmBlocked, state.blue42mmBlocked);
+        MatchTeamEconomy.ApplyLanState(state.redCoins, state.blueCoins);
         OutpostHealth.ApplyLanState(state);
         FindAnyObjectByType<MatchTimer>()?.ApplyLanTime(state.remaining, state.timeFinished);
         FindAnyObjectByType<MatchOutcome>()?.ApplyLanResult(state);

@@ -438,7 +438,7 @@ MonoBehaviour:
   baseGimbalYawSpeed: 300
   baseGimbalPitchSpeed: 300
   baseCanShoot: 1
-  baseAmmo17mm: 500
+  baseAmmo17mm: 0
   baseAmmo42mm: 0
   baseMaxAmmo17mm: 500
   baseMaxAmmo42mm: 0
@@ -2287,8 +2287,8 @@ MonoBehaviour:
   baseGimbalYawSpeed: 300
   baseGimbalPitchSpeed: 300
   baseCanShoot: 1
-  baseAmmo17mm: 200
-  baseAmmo42mm: 16
+  baseAmmo17mm: 0
+  baseAmmo42mm: 0
   baseMaxAmmo17mm: 200
   baseMaxAmmo42mm: 16
   baseBarrelHeat: 0
@@ -3627,7 +3627,7 @@ MonoBehaviour:
   baseGimbalYawSpeed: 300
   baseGimbalPitchSpeed: 300
   baseCanShoot: 1
-  baseAmmo17mm: 500
+  baseAmmo17mm: 0
   baseAmmo42mm: 0
   baseMaxAmmo17mm: 500
   baseMaxAmmo42mm: 0
@@ -6672,7 +6672,7 @@ MonoBehaviour:
   baseGimbalYawSpeed: 300
   baseGimbalPitchSpeed: 300
   baseCanShoot: 1
-  baseAmmo17mm: 500
+  baseAmmo17mm: 0
   baseAmmo42mm: 0
   baseMaxAmmo17mm: 500
   baseMaxAmmo42mm: 0
@@ -8769,7 +8769,7 @@ MonoBehaviour:
   baseGimbalYawSpeed: 300
   baseGimbalPitchSpeed: 300
   baseCanShoot: 1
-  baseAmmo17mm: 500
+  baseAmmo17mm: 0
   baseAmmo42mm: 0
   baseMaxAmmo17mm: 500
   baseMaxAmmo42mm: 0
@@ -9046,7 +9046,7 @@ MonoBehaviour:
   baseGimbalYawSpeed: 300
   baseGimbalPitchSpeed: 300
   baseCanShoot: 1
-  baseAmmo17mm: 500
+  baseAmmo17mm: 0
   baseAmmo42mm: 0
   baseMaxAmmo17mm: 500
   baseMaxAmmo42mm: 0
@@ -9839,7 +9839,7 @@ MonoBehaviour:
   baseGimbalYawSpeed: 300
   baseGimbalPitchSpeed: 300
   baseCanShoot: 1
-  baseAmmo17mm: 500
+  baseAmmo17mm: 0
   baseAmmo42mm: 0
   baseMaxAmmo17mm: 500
   baseMaxAmmo42mm: 0
@@ -10196,8 +10196,8 @@ MonoBehaviour:
   baseGimbalYawSpeed: 300
   baseGimbalPitchSpeed: 300
   baseCanShoot: 1
-  baseAmmo17mm: 200
-  baseAmmo42mm: 16
+  baseAmmo17mm: 0
+  baseAmmo42mm: 0
   baseMaxAmmo17mm: 200
   baseMaxAmmo42mm: 16
   baseBarrelHeat: 0

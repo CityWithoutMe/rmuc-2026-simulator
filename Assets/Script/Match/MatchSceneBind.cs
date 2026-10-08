@@ -54,6 +54,10 @@ public static class MatchSceneBind
         HighlandZoneContest.BindForLoadedMatch();
         TerrainCrossBuff.BindForLoadedMatch();
         SideZoneBuff.BindForLoadedMatch();
+        FieldSupportZoneBuff.BindForLoadedMatch();
+        MatchTeamEconomy.BindForLoadedMatch();
+        Hero42mmShield.BindForLoadedMatch();
+        AmmoExchange.BindForLoadedMatch();
         BuffGainHud.BindForLoadedMatch();
         CombatFeedbackHud.BindForLoadedMatch();
         MatchOutcome.BindForLoadedMatch();

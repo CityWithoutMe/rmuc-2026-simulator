@@ -103,6 +103,7 @@ public class PlayerShooting : MonoBehaviour
 
         // 当前弹种扣对应弹药。42mm 热量 +100，17mm 热量 +10。没有弹药：不生成子弹，也不加热。切换弹种不扣弹、不加热。
         bool use42 = Uses42mm();
+        int allowanceBefore = attributes != null ? Mathf.FloorToInt(attributes.GetCurrent(RobotStat.Ammo42mm)) : 0;
         bool consumed = false;
         if (attributes != null)
         {
@@ -127,6 +128,7 @@ public class PlayerShooting : MonoBehaviour
 
         if (consumed)
         {
+            if (use42) Hero42mmShield.Notify42mmFired(attributes, allowanceBefore);
             attributes.NotifyRoundFired();
             attributes.AddBarrelHeat(use42 ? RobotAttributeManager.HeatPer42mmRound : RobotAttributeManager.HeatPer17mmRound);
             attributes.GrantFlatExperience(

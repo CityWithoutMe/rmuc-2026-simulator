@@ -1,13 +1,14 @@
-# RMUC 2026 模拟器（Net 分支）
+# RMUC 2026 模拟器
 
-这是 **实现了局域网联机** 的源码分支。
+这是支持英雄＋步兵 2v2 的 Unity 模拟器，包含局域网联机和 2026 规则更新。
 
 - 仓库：https://github.com/CityWithoutMe/rmuc-2026-simulator
-- 联机代码在 **`Net`**。`main` 仍是更早的初始提交，没有这套联网。
-- 不装 Unity、直接玩：下载 [局域网 Windows 客户端](https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/lan-client)（解压后双击 `RMNetwork.exe`）。
+- **`main` 是当前主版本**，包含最新联机与规则实现。
+- 不装 Unity、直接玩：下载 [Windows 安装包或免安装 ZIP](https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/v2026.10.08)。
+- 本次规则更新：主机金币、零初始弹量、现场／远程购买、补给区与中央高地增益、前哨重建与旋转、能量机关奖励、英雄 42mm 伤害屏蔽。详见 [2v2 规则更新](README/2v2规则更新.md)。
 
 ```bash
-git clone -b Net https://github.com/CityWithoutMe/rmuc-2026-simulator.git
+git clone https://github.com/CityWithoutMe/rmuc-2026-simulator.git
 ```
 
 克隆前请安装 [Git LFS](https://git-lfs.com)，否则场地 FBX、天空盒等大文件只会下到指针。
@@ -16,22 +17,22 @@ git clone -b Net https://github.com/CityWithoutMe/rmuc-2026-simulator.git
 
 **源码完整。** 可执行客户端在 GitHub **Release**，不在 git 树里（避免把 100MB+ 资源塞进历史）。
 
-`Net` 里有 Unity 工程（场景、脚本、资源、联机模块、测试和联机说明）。下面这些**故意没有放进源码**：
+`main` 里有 Unity 工程（场景、脚本、资源、联机模块、测试和联机说明）。下面这些**故意没有放进源码**：
 
 | 内容 | 原因 |
 |------|------|
 | `Build/` 打包结果（含 `RMNetwork.exe`） | 体积大，且每次构建都会变；已用 Release 发布 |
 | `Library/`、`Temp/`、`Logs/` | Unity 生成缓存，对方用编辑器打开后会重建 |
 
-想直接玩：打开 [Releases / lan-client](https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/lan-client)，下载 `RMNetwork-Windows-Lan.zip`。
+想直接玩：打开 [Releases / v2026.10.08](https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/v2026.10.08)，下载安装 EXE 或免安装 ZIP。
 
 ## 打包后的游戏在哪打开？
 
 ### 从 GitHub 下载（推荐）
 
-1. 打开 https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/lan-client
-2. 下载 `RMNetwork-Windows-Lan.zip` 并解压
-3. 双击其中的 `RMNetwork.exe`
+1. 打开 https://github.com/CityWithoutMe/rmuc-2026-simulator/releases/tag/v2026.10.08
+2. 下载 `RMUC2026-Simulator-2026.10.8-Windows-Setup.exe` 并安装，随后从开始菜单启动
+3. 或下载 `RMUC2026-Simulator-2026.10.8-Windows-Portable.zip`，解压后双击 `RMNetwork.exe`
 
 不要只复制 exe，必须带着同目录的 `RMNetwork_Data`、`UnityPlayer.dll` 等一起用。
 
@@ -62,6 +63,8 @@ git clone -b Net https://github.com/CityWithoutMe/rmuc-2026-simulator.git
 批处理构建可调用 `LanBuildTools.BuildForRelease`，用 `-lanReleaseDirectory Build/自定义目录/client` 指定独立输出，避免覆盖日常构建。
 再用 PowerShell 7.2+ 执行 `Tests/LanNetworking/Package-Release.ps1`，传入 `-ClientDirectory`、`-OutputZip` 和当前完整提交号 `-SourceCommit`。
 打包器会校验运行时源码与构建的 PDB 一致，检查运行依赖，去掉调试符号/DoNotShip 目录，并附启动说明、`BUILD-INFO.json` 和文件校验清单。
+
+安装程序使用 Inno Setup 7。将官方编译器以便携模式放在 `Build/Tools/InnoSetup/`，或用 `-CompilerPath` 指定已有 `ISCC.exe`；再执行 `Tests/LanNetworking/Build-Installer.ps1 -PackageZip <已校验ZIP> -Version 2026.10.8 -OutputDirectory <Build内输出目录>`。安装程序使用当前用户目录，支持开始菜单入口、可选桌面快捷方式和卸载，无需管理员权限。
 
 也可用编辑器从 **MainMenu** 场景点 Play，走主菜单的「联网游戏」或「本地跑图」。不要只打开空的 SampleScene 当联机入口。
 

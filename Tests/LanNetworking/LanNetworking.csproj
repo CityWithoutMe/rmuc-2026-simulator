@@ -7,6 +7,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="../../Assets/Script/Match/Hero42mmShieldRules.cs" Link="Hero42mmShieldRules.cs" />
+    <Compile Include="../../Assets/Script/Match/TeamCoinLedger.cs" Link="TeamCoinLedger.cs" />
+    <Compile Include="../../Assets/Script/Field/RuneRotationRules.cs" Link="RuneRotationRules.cs" />
+    <Compile Include="../../Assets/Script/Field/OutpostRules.cs" Link="OutpostRules.cs" />
+    <Compile Include="../../Assets/Script/Match/AmmoExchangeRules.cs" Link="AmmoExchangeRules.cs" />
     <Compile Include="../../Assets/Script/Networking/LanRoom.cs" Link="LanRoom.cs" />
     <Compile Include="../../Assets/Script/Networking/LanTransport.cs" Link="LanTransport.cs" />
   </ItemGroup>

@@ -81,6 +81,7 @@ public class BuffGainHud : MonoBehaviour
         CollectSources(RobotStat.DefenseBuffPercent);
         CollectSources(RobotStat.CooldownBuffPercent);
         CollectSources(RobotStat.CoolingRate);
+        CollectSources(RobotStat.RecoveryRate);
 
         string body = ProgressFor(stats);
         for (int i = 0; i < sourceIds.Count; i++)
@@ -123,6 +124,8 @@ public class BuffGainHud : MonoBehaviour
         if (TerrainCrossBuff.TryGetAttempt(attr, out string crossing)) lines.Add(crossing);
         if (HighlandZoneContest.TryGetChannel(attr, out string highland)) lines.Add(highland);
         if (SideZoneBuff.TryGetChannel(attr, out string side)) lines.Add(side);
+        string rebuilding = OutpostHealth.RebuildProgress(attr);
+        if (!string.IsNullOrEmpty(rebuilding)) lines.Add(rebuilding);
         return string.Join("\n", lines);
     }
 
@@ -150,6 +153,7 @@ public class BuffGainHud : MonoBehaviour
         found |= Longer(RobotStat.DefenseBuffPercent, sourceId, ref remain);
         found |= Longer(RobotStat.CooldownBuffPercent, sourceId, ref remain);
         found |= Longer(RobotStat.CoolingRate, sourceId, ref remain);
+        found |= Longer(RobotStat.RecoveryRate, sourceId, ref remain);
         if (!found || remain < 0f)
             return "持续";
         int seconds = Mathf.Max(0, Mathf.CeilToInt(remain));
@@ -193,6 +197,8 @@ public class BuffGainHud : MonoBehaviour
         Append(ref text, "冷却", ModifierAdd(RobotStat.CooldownBuffPercent, sourceId));
         Append(ref text, "冷却", ModifierPercent(RobotStat.CoolingRate, sourceId));
         float coolAdd = ModifierAdd(RobotStat.CoolingRate, sourceId);
+        float heal = ModifierAdd(RobotStat.RecoveryRate, sourceId);
+        if (heal > 0f) text += "回血+" + heal.ToString("0.#", CultureInfo.InvariantCulture) + "/秒";
         if (coolAdd > 0.01f)
         {
             if (text.Length > 0)
@@ -237,6 +243,9 @@ public class BuffGainHud : MonoBehaviour
 
     static string BuffName(string sourceId)
     {
+        if (sourceId.StartsWith("zone_support_supply_", System.StringComparison.Ordinal)) return "补给区";
+        if (sourceId.StartsWith("zone_support_outpost_", System.StringComparison.Ordinal)) return "前哨站增益点";
+        if (sourceId.StartsWith("zone_support_central_", System.StringComparison.Ordinal)) return "中央高地";
         if (sourceId.StartsWith("zone_highland", System.StringComparison.Ordinal))
             return "梯形高地";
         if (sourceId == TerrainCrossBuff.GroundDefenseId)
